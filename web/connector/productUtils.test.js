@@ -1,7 +1,9 @@
+import { SuppliedProduct } from
+  '@datafoodconsortium/connector';
 import {
   createSuppliedProducts,
   createVariantSuppliedProduct,
-  exportSuppliedProducts,
+  exportSuppliedProducts
 } from './productUtils';
 
 import {
@@ -10,7 +12,6 @@ import {
   suppliedProductsWithMappedFdcVariants,
   suppliedProductsWithUnmappedFdcVariants
 } from './mocks.js';
-import { SuppliedProduct } from '@datafoodconsortium/connector';
 
 describe('createVariantSuppliedProduct', () => {
   it('should create a variant supplied product', async () => {
@@ -23,16 +24,16 @@ describe('createVariantSuppliedProduct', () => {
     expect(result).toBeInstanceOf(Array);
     expect(result).toHaveLength(3);
     expect(result[0].getSemanticId()).toBe(
-      `http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/43305180201112`
+      'http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/43305180201112'
     );
     expect(result[0].getName()).toBe('Camelina Seed - Retail pack, 300g');
     expect(result[0].getImages()).toEqual(['https://cdn.shopify.com/s/files/1/0587/9735/9256/products/37-cammalina-fron.jpg?v=1706882031']);
 
     expect(result[1].getSemanticId()).toBe(
-      `http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/43305180201112/Offer`
+      'http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/43305180201112/Offer'
     );
     expect(result[2].getSemanticId()).toBe(
-      `http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/43305180201112/CatalogItem`
+      'http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/43305180201112/CatalogItem'
     );
 
     const [quantity, catalogItems] = await Promise.all([
@@ -96,23 +97,23 @@ describe('createSuppliedProducts', () => {
 
     expect(result[1].getSemanticId()).toBe(semanticIdProductTwo);
 
-    expect(result[5].getSemanticId()).toBe(semanticIdProductOne + '/Offer');
+    expect(result[5].getSemanticId()).toBe(`${semanticIdProductOne}/Offer`);
     expect(result[6].getSemanticId()).toBe(
-      semanticIdProductOne + '/CatalogItem'
+      `${semanticIdProductOne}/CatalogItem`
     );
-    expect(result[7].getSemanticId()).toBe(semanticIdProductTwo + '/Offer');
+    expect(result[7].getSemanticId()).toBe(`${semanticIdProductTwo}/Offer`);
     expect(result[8].getSemanticId()).toBe(
-      semanticIdProductTwo + '/CatalogItem'
+      `${semanticIdProductTwo}/CatalogItem`
     );
 
     expect(result[2].getSemanticId()).toBe(
-      semanticIdProductOne + '/AsPlannedConsumptionFlow'
+      `${semanticIdProductOne}/AsPlannedConsumptionFlow`
     );
     expect(result[3].getSemanticId()).toBe(
-      semanticIdProductOne + '/AsPlannedProductionFlow'
+      `${semanticIdProductOne}/AsPlannedProductionFlow`
     );
     expect(result[4].getSemanticId()).toBe(
-      semanticIdProductOne + '/AsPlannedTransformation'
+      `${semanticIdProductOne}/AsPlannedTransformation`
     );
   });
 
@@ -122,10 +123,10 @@ describe('createSuppliedProducts', () => {
       'producer-shop'
     );
 
-    const suppliedProducts = result.filter(item => item instanceof SuppliedProduct);
+    const suppliedProducts = result.filter((item) => item instanceof SuppliedProduct);
 
     expect(suppliedProducts).toHaveLength(2);
-    
+
     expect(suppliedProducts[0].getSemanticId()).toBe('http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/49889697366289');
     expect(suppliedProducts[0].getName()).toBe('Baked British Beans - Retail bottle, 40ml');
 

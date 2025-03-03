@@ -1,3 +1,4 @@
+import SuppliedProduct from '@datafoodconsortium/connector/lib/SuppliedProduct';
 import { throwError } from '../utils/index.js';
 import loadConnectorWithResources from './index.js';
 import loadProductTypes from './mappedProductTypes.js';
@@ -77,7 +78,7 @@ async function createVariantSuppliedProduct(
     const suppliedProduct = connector.createSuppliedProduct({
       connector,
       semanticId: semanticBase,
-      name: parentProduct.title + ' - ' + variant.title,
+      name: `${parentProduct.title} - ${variant.title}`,
       description: parentProduct.descriptionHtml,
       quantity,
       catalogItems: [catalogItem],
@@ -96,66 +97,6 @@ async function createVariantSuppliedProduct(
   }
   return null;
 }
-
-async function createSuppliedProducts(productsFromShopify, enterpriseName) {
-  try {
-    if (
-      !Array.isArray(productsFromShopify) ||
-      productsFromShopify.length === 0
-    ) {
-      throwError('Error creating supplied products: no products found');
-    }
-
-    const productsPromises = productsFromShopify.flatMap((product) =>
-      product.fdcVariants
-        .filter(({ enabled }) => enabled)
-        .map((variant) => createVariants(product, variant, enterpriseName))
-    );
-
-    return (await Promise.all(productsPromises)).flat();
-  } catch (error) {
-    throwError('Error creating supplied products:', error);
-  }
-}
-
-const createVariants = async (
-  shopifyProduct,
-  variantMapping,
-  enterpriseName
-) => {
-  const { wholesaleVariantId, retailVariantId, noOfItemsPerPackage } =
-    variantMapping;
-
-  const retailVariant = shopifyProduct.variants.find(
-    ({ id }) => id == retailVariantId
-  );
-
-  if (!retailVariant) {
-    console.error(
-      `Variant mapping for Product ${shopifyProduct.id} for retail variant ${retailVariantId} is invalid. Contains non existant variant. Skipping`
-    );
-    return [];
-  }
-
-  if (wholesaleVariantId) {
-    const wholesaleVariant = shopifyProduct.variants.find(
-      ({ id }) => id == wholesaleVariantId
-    );
-    return await createMappedVariant(
-      shopifyProduct,
-      retailVariant,
-      wholesaleVariant,
-      noOfItemsPerPackage,
-      enterpriseName
-    );
-  } else {
-    return await createVariantSuppliedProduct(
-      shopifyProduct,
-      retailVariant,
-      enterpriseName
-    );
-  }
-};
 
 async function createMappedVariant(
   shopifyProduct,
@@ -215,6 +156,83 @@ async function createMappedVariant(
     ...retailOthers,
     ...wholesaleOthers
   ];
+}
+
+const createVariants = async (
+  shopifyProduct,
+  variantMapping,
+  enterpriseName
+) => {
+  const { wholesaleVariantId, retailVariantId, noOfItemsPerPackage } =
+    variantMapping;
+
+  const retailVariant = shopifyProduct.variants.find(
+    ({ id }) => id === retailVariantId
+  );
+
+  if (!retailVariant) {
+    console.error(
+      `Variant mapping for Product ${shopifyProduct.id} for retail variant ${retailVariantId} is invalid. Contains non existant variant. Skipping`
+    );
+    return [];
+  }
+
+  if (wholesaleVariantId) {
+    const wholesaleVariant = shopifyProduct.variants.find(
+      ({ id }) => id === wholesaleVariantId
+    );
+    return createMappedVariant(
+      shopifyProduct,
+      retailVariant,
+      wholesaleVariant,
+      noOfItemsPerPackage,
+      enterpriseName
+    );
+  }
+  return createVariantSuppliedProduct(
+    shopifyProduct,
+    retailVariant,
+    enterpriseName
+  );
+};
+
+const createParent = async (product, enterpriseName) => {
+  const connector = await loadConnectorWithResources();
+  const productTypes = await loadProductTypes();
+  const semanticBase = `${config.PRODUCER_SHOP_URL}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${product.id}`;
+
+  return connector.createSuppliedProduct({
+    connector,
+    semanticId: semanticBase,
+    name: product.title,
+    description: product.descriptionHtml,
+    productType: productTypes[product.productType] ?? null
+  });
+};
+
+async function createSuppliedProducts(productsFromShopify, enterpriseName) {
+  try {
+    if (
+      !Array.isArray(productsFromShopify) ||
+      productsFromShopify.length === 0
+    ) {
+      throwError('Error creating supplied products: no products found');
+    }
+
+    const productsPromises = productsFromShopify.map(async (product) => {
+      const variantsGraph = await Promise.all(product.fdcVariants
+        .filter(({ enabled }) => enabled)
+        .flatMap(async (variant) => createVariants(product, variant, enterpriseName)));
+
+      const variants = variantsGraph.filter((item) => item instanceof SuppliedProduct);
+      const parent = await createParent(product, enterpriseName);
+      parent.setVariants(variants);
+      return [parent, ...variantsGraph];
+    });
+    return (await Promise.all(productsPromises)).flat();
+  } catch (error) {
+    throwError('Error creating supplied products:', error);
+  }
 }
 
 async function exportSuppliedProducts(productsFromShopify, enterpriseName) {

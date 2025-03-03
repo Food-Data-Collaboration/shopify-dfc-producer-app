@@ -1,6 +1,4 @@
-import {
-  Connector,
-} from '@datafoodconsortium/connector';
+import Connector from '@datafoodconsortium/connector/lib/Connector';
 import facets from './thesaurus/facets.json' assert { type: 'json' };
 import measures from './thesaurus/measures.json' assert { type: 'json' };
 import productTypes from './thesaurus/productTypes.json' assert { type: 'json' };
