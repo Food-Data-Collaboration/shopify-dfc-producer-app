@@ -1,4 +1,4 @@
-import SuppliedProduct from '@datafoodconsortium/connector/lib/SuppliedProduct';
+import SuppliedProduct from '@datafoodconsortium/connector/lib/SuppliedProduct.js';
 import { throwError } from '../utils/index.js';
 import loadConnectorWithResources from './index.js';
 import loadProductTypes from './mappedProductTypes.js';
@@ -220,18 +220,25 @@ async function createSuppliedProducts(productsFromShopify, enterpriseName) {
     }
 
     const productsPromises = productsFromShopify.map(async (product) => {
-      const variantsGraph = await Promise.all(product.fdcVariants
+      const variantsGraph = (await Promise.all(product.fdcVariants
         .filter(({ enabled }) => enabled)
-        .flatMap(async (variant) => createVariants(product, variant, enterpriseName)));
+        .flatMap(async (variant) => createVariants(product, variant, enterpriseName))))
+        .flat();
 
       const variants = variantsGraph.filter((item) => item instanceof SuppliedProduct);
+
+      if (variants.length === 0) {
+        return [];
+      }
+
       const parent = await createParent(product, enterpriseName);
       parent.setVariants(variants);
+      variants.forEach((variant) => variant.addIsVariantOf(parent));
       return [parent, ...variantsGraph];
     });
-    return (await Promise.all(productsPromises)).flat();
+    return (await Promise.all(productsPromises)).flat(2);
   } catch (error) {
-    throwError('Error creating supplied products:', error);
+    return throwError('Error creating supplied products:', error);
   }
 }
 

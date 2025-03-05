@@ -96,7 +96,7 @@
 
 "@datafoodconsortium/connector@jgaehring/connector-typescript#rc-alpha-10":
   version "1.0.0-alpha.10"
-  resolved "git+ssh://git@github.com/jgaehring/connector-typescript.git#bc6f900b230254e2446f8fa680e8ffea3d1393f3"
+  resolved "git+ssh://git@github.com/jgaehring/connector-typescript.git#87c17383a01c7bd433cfae35d5610eee1d4111b6"
   dependencies:
     "@rdfjs/serializer-jsonld-ext" "^4.0.0"
     "@virtual-assembly/semantizer" "github:assemblee-virtuelle/semantizer-typescript#alpha.3"
@@ -549,13 +549,13 @@
     "@rdfjs/to-ntriples" "^3.0.1"
 
 "@rdfjs/serializer-jsonld-ext@^4.0.0":
-  version "4.0.0"
-  resolved "https://registry.npmjs.org/@rdfjs/serializer-jsonld-ext/-/serializer-jsonld-ext-4.0.0.tgz"
-  integrity sha512-HP5DCmhyfVuQuk58AO5vzNY+dIFVHe2oHY8NX2K+3XmrTmu/yzrFzPbDeU9Cwr71XC4RifEMoksIg+8jnhxmfQ==
+  version "4.0.1"
+  resolved "https://registry.npmjs.org/@rdfjs/serializer-jsonld-ext/-/serializer-jsonld-ext-4.0.1.tgz"
+  integrity sha512-eGNAdhsV8wkmCadyIN+PBfsN+BIiqplAd5VMc++wf5McsVi/vPNrWcBINdrNnlegml8nLUy0rlKztCQ/4pxW8w==
   dependencies:
-    "@rdfjs/sink" "^2.0.0"
-    jsonld "^8.1.0"
-    readable-stream "^4.3.0"
+    "@rdfjs/sink" "^2.0.1"
+    jsonld "^8.3.3"
+    readable-stream "^4.7.0"
     stream-chunks "^1.0.0"
 
 "@rdfjs/serializer-jsonld@^2.0.0":
@@ -1039,9 +1039,9 @@
     undici-types "~5.26.4"
 
 "@types/node@^18.0.0":
-  version "18.19.76"
-  resolved "https://registry.npmjs.org/@types/node/-/node-18.19.76.tgz"
-  integrity sha512-yvR7Q9LdPz2vGpmpJX5LolrgRdWvB67MJKDPSgIIzpFbaf9a1j/f5DnLp5VDyHGMR0QZHlTr1afsD87QCXFHKw==
+  version "18.19.79"
+  resolved "https://registry.npmjs.org/@types/node/-/node-18.19.79.tgz"
+  integrity sha512-90K8Oayimbctc5zTPHPfZloc/lGVs7f3phUAAMcTgEPtg8kKquGZDERC8K4vkBYkQQh48msiYUslYtxTWvqcAg==
   dependencies:
     undici-types "~5.26.4"
 
@@ -4285,7 +4285,7 @@ jsonld-streaming-parser@^5.0.0:
     rdf-data-factory "^2.0.0"
     readable-stream "^4.0.0"
 
-jsonld@^8.1.0:
+jsonld@^8.1.0, jsonld@^8.3.3:
   version "8.3.3"
   resolved "https://registry.npmjs.org/jsonld/-/jsonld-8.3.3.tgz"
   integrity sha512-9YcilrF+dLfg9NTEof/mJLMtbdX1RJ8dbWtJgE00cMOIohb1lIyJl710vFiTaiHTl6ZYODJuBd32xFvUhmv3kg==
@@ -4732,9 +4732,9 @@ ms@2.1.2:
   integrity sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
 
 n3@^1.17.2:
-  version "1.23.1"
-  resolved "https://registry.npmjs.org/n3/-/n3-1.23.1.tgz"
-  integrity sha512-3f0IYJo+6+lXypothmlwPzm3wJNffsxUwnfONeFv2QqWq7RjTvyCMtkRXDUXW6XrZoOzaQX8xTTSYNlGjXcGtw==
+  version "1.24.0"
+  resolved "https://registry.npmjs.org/n3/-/n3-1.24.0.tgz"
+  integrity sha512-iE4V0aSa3gCaqb3E2HoxQhlmoe7Kqy1Uy56mO0eDo9u3kJKzjjPIIO5mHi1bGi+YCP0cYZDt95k58tSSO0GlgQ==
   dependencies:
     buffer "^6.0.3"
     queue-microtask "^1.1.2"
@@ -5729,7 +5729,7 @@ readable-stream@^3.6.0:
     string_decoder "^1.1.1"
     util-deprecate "^1.0.1"
 
-readable-stream@^4.0.0, readable-stream@^4.2.0, readable-stream@^4.3.0, readable-stream@^4.4.2, readable-stream@^4.5.2:
+readable-stream@^4.0.0, readable-stream@^4.2.0, readable-stream@^4.3.0, readable-stream@^4.4.2, readable-stream@^4.5.2, readable-stream@^4.7.0:
   version "4.7.0"
   resolved "https://registry.npmjs.org/readable-stream/-/readable-stream-4.7.0.tgz"
   integrity sha512-oIGGmcpTLwPga8Bn6/Z75SVaH1z5dUut2ibSyAMVhmUggWpmDn2dapB0n7f8nwaSiRtepAsfJyfXIO5DCVAODg==
