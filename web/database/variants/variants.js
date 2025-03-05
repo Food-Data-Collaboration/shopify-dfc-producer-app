@@ -2,16 +2,19 @@ import { query } from '../connect.js';
 
 async function getVariants() {
   return (await query('SELECT * FROM fdc_variants order by product_id')).rows;
+  return (await query('SELECT * FROM fdc_variants order by product_id')).rows;
 }
 
 async function getVariantsByProductId(productId) {
   return (
+    await query('SELECT * FROM fdc_variants where product_id = $1', [productId])
     await query('SELECT * FROM fdc_variants where product_id = $1', [productId])
   ).rows;
 }
 
 async function variantCount() {
   return Number(
+    (await query('SELECT count(*) FROM fdc_variants')).rows[0].count
     (await query('SELECT count(*) FROM fdc_variants')).rows[0].count
   );
 }
@@ -48,6 +51,16 @@ async function updateVariant(
 
 async function toggleVariantMappingStatus(variantId) {
   return (await query('UPDATE fdc_variants SET enabled = NOT enabled WHERE id = $1 RETURNING *', [variantId]))?.rows[0];
+}
+
+async function setAllVariantMappingStatuses(productId, variants, status) {
+  return (await query(`INSERT into fdc_variants (product_id, retail_variant_id, enabled)
+     (SELECT * FROM json_to_recordset($1)
+       AS x("productId" bigint, "variantId" bigint, "status" boolean))
+       on CONFLICT(product_id, retail_variant_id)
+          DO UPDATE SET
+               enabled = EXCLUDED.enabled 
+            RETURNING *;`, [JSON.stringify(variants.map((variantId) => ({ productId, variantId, status })))]))?.rows;
 }
 
 async function deleteVariant(variantId) {
@@ -98,6 +111,7 @@ export {
   combineFdcProductsWithTheirFdcConfiguration,
   addFdcConfigurationToFdcProducts as addVariantsToProducts,
   toggleVariantMappingStatus,
+  setAllVariantMappingStatuses,
   addVariant,
   updateVariant,
   deleteVariant

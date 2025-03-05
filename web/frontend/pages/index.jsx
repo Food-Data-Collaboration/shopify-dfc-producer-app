@@ -2,7 +2,7 @@ import { Button, Stack, TextField } from '@mui/material';
 import { Loading } from '@shopify/app-bridge-react';
 import { Card, SkeletonBodyText } from '@shopify/polaris';
 import React, { useState } from 'react';
-import { ProductCard } from '../components/ProductCard';
+import ProductCard from '../components/ProductCard';
 import { useAppQuery } from '../hooks';
 
 export default function HomePage() {
@@ -21,8 +21,7 @@ export default function HomePage() {
     const matchesSearch =
       product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.variants?.some((variant) =>
-        variant.title.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+        variant.title.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesFDC && matchesSearch;
   });
 
@@ -93,7 +92,11 @@ export default function HomePage() {
       ) : (
         <Stack spacing="12px" px="60px" py="12px">
           {filteredProducts?.map((product) => (
-            <ProductCard key={product.id} product={product} variantMappingEnabled={data?.variantMappingEnabled} />
+            <ProductCard
+              key={product.id}
+              product={product}
+              variantMappingEnabled={data?.variantMappingEnabled}
+            />
           ))}
         </Stack>
       )}
