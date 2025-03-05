@@ -1,6 +1,6 @@
 import shopify from '../../../shopify.js';
 import getSession from '../../../utils/getShopifySession.js';
-import { createDFCProductsFromShopify } from '../dfc/dfc-products.js';
+import createDFCProductsFromShopify from '../dfc/dfc-products.js';
 import {
   findFDCProducts,
   getFdcVariantsByProductIdFromDB

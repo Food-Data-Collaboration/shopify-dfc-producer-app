@@ -10,12 +10,12 @@
     "info": "shopify app info",
     "generate": "shopify app generate",
     "deploy": "shopify app deploy",
-    "test": "jest --runInBand --detectOpenHandles --forceExit web/${0}",
+    "test": "jest --runInBand --detectOpenHandles --forceExit web/*",
     "acceptance-test": "jest --runInBand --detectOpenHandles --forceExit acceptance-tests/",
     "build:db": "node ./web/database/build.js"
   },
   "dependencies": {
-    "@datafoodconsortium/connector": "^1.0.0-alpha.9",
+    "@datafoodconsortium/connector": "jgaehring/connector-typescript#rc-alpha-10",
     "@shopify/app": "3.47.5",
     "@shopify/cli": "3.47.5",
     "@shopify/shopify-app-session-storage-postgresql": "^1.1.9",

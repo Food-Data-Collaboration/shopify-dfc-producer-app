@@ -31,7 +31,10 @@ async function addVariant({
   ))?.rows[0];
 }
 
-async function updateVariant(variantId, { retailVariantId, wholesaleVariantId, noOfItemsPerPackage }) {
+async function updateVariant(
+  variantId,
+  { retailVariantId, wholesaleVariantId, noOfItemsPerPackage }
+) {
   return (await query(
     'UPDATE fdc_variants SET wholesale_variant_id = $2, retail_variant_id = $3, no_of_items_per_package = $4  WHERE id = $1 RETURNING *',
     [
@@ -82,18 +85,18 @@ function indexedByProductId(variants) {
   }, {});
 }
 
-async function combineFdcProductsWithTheirFdcConfiguration(products) {
-  return addFdcConfigurationToFdcProducts(
-    products,
-    indexedByProductId(await getVariants())
-  );
-}
-
 function addFdcConfigurationToFdcProducts(products, variantsByProductId) {
   return products.map((product) => ({
     ...product,
     fdcVariants: variantsByProductId[product.id] || []
   }));
+}
+
+async function combineFdcProductsWithTheirFdcConfiguration(products) {
+  return addFdcConfigurationToFdcProducts(
+    products,
+    indexedByProductId(await getVariants())
+  );
 }
 
 export {

@@ -1,7 +1,8 @@
 import { exportSuppliedProducts } from '../../../connector/productUtils.js';
 import { addVariantsToProducts } from '../../../database/variants/variants.js';
 import config from '../../../config.js';
-export async function createDFCProductsFromShopify(
+
+export default async function createDFCProductsFromShopify(
   fdcProducts,
   fdcVariantsByProductId
 ) {
