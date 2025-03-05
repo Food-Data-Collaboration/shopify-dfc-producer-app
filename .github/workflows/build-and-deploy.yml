@@ -19,7 +19,7 @@ on:
 
 jobs:
   build-and-push-image:
-    runs-on: ubuntu-latest
+    runs-on: nektos/act-environments-ubuntu:18.04
     env:
       SHOPIFY_API_KEY: ${{ secrets.shopify_api_key }}
     steps:
