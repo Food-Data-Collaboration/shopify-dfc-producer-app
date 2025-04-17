@@ -11,10 +11,10 @@ const toProduct = (product) => ({
   }))
 });
 
-async function findProducts(client) {
+async function findProducts(client, after) {
   const response = await client.request(`
-    {
-      products(first: 250, sortKey: TITLE) {
+    query findProducts($after: String) {
+      products(first: 250, after: $after, sortKey: TITLE) {
         edges {
           node {
             id
@@ -59,19 +59,29 @@ async function findProducts(client) {
               }
             }
           }
-        }
+        },
+        pageInfo {
+            hasPreviousPage
+            hasNextPage
+            startCursor
+            endCursor
+          }
       }
     }
-  `);
+  `, { variables: { after } });
 
   if (response.errors) {
     console.error('Failed to load Products', JSON.stringify(response.errors));
     throw new Error('Failed to load Products');
   }
 
-  return response?.data?.products?.edges.map(({ node: product }) =>
-    toProduct(product)
-  );
+  const thisPage = response?.data?.products?.edges.map(({ node: product }) =>
+    toProduct(product));
+
+  if (response?.data?.products?.pageInfo.hasNextPage) {
+    const rest = await findProducts(client, response?.data?.products?.pageInfo.endCursor);
+    return [...thisPage, ...rest];
+  } return thisPage;
 }
 
 const getProducts = async ({ session }) => {

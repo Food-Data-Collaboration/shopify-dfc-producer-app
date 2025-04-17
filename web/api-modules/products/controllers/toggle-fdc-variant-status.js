@@ -1,6 +1,6 @@
-import { toggleVariantMappingStatus } from '../../../database/variants/variants.js'
+import { toggleVariantMappingStatus, setAllVariantMappingStatuses } from '../../../database/variants/variants.js';
 
-const toggleFdcVariantStatus = async (req, res) => {
+export const toggleFdcVariantStatus = async (req, res) => {
   try {
     const { variantId } = req.params;
 
@@ -15,4 +15,18 @@ const toggleFdcVariantStatus = async (req, res) => {
   }
 };
 
-export default toggleFdcVariantStatus;
+export const changeFdcStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { enabled, variants } = req.body;
+
+    const updatedVariantMapping = await setAllVariantMappingStatuses(id, variants, enabled);
+
+    return res.status(200).json(updatedVariantMapping);
+  } catch (error) {
+    console.error('Error updating product', error);
+    return res.status(500).json({
+      error: 'Error updating product'
+    });
+  }
+};

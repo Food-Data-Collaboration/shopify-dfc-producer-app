@@ -1,10 +1,8 @@
-import {
-  Connector,
-} from '@datafoodconsortium/connector';
-import facets from './thesaurus/facets.json' assert { type: 'json' };
-import measures from './thesaurus/measures.json' assert { type: 'json' };
-import productTypes from './thesaurus/productTypes.json' assert { type: 'json' };
-import vocabulary from './thesaurus/vocabulary.json' assert { type: 'json' };
+import {Connector} from '@datafoodconsortium/connector';
+import facets from './thesaurus/facets.json' with { type: 'json' };
+import measures from './thesaurus/measures.json' with { type: 'json' };
+import productTypes from './thesaurus/productTypes.json' with { type: 'json' };
+import vocabulary from './thesaurus/vocabulary.json' with { type: 'json' };
 import { throwError } from '../utils/index.js';
 
 let _connector;

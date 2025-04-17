@@ -56,24 +56,6 @@ const query = `query findProducts($ids: [ID!]!) {
   }
 }`;
 
-export async function findFDCProducts(client, fdcVariantsFromDB) {
-  return await findProductsByIds(client, fdcVariantsFromDB);
-}
-
-export async function getFdcVariantsFromDB() {
-  const variants = await getVariants();
-  const mappedVariantsByProductId = indexedByProductId(variants);
-
-  return mappedVariantsByProductId;
-}
-
-export async function getFdcVariantsByProductIdFromDB(productId) {
-  const variants = await getVariantsByProductId(productId);
-  const mappedVariantsByProductId = indexedByProductId(variants);
-
-  return mappedVariantsByProductId;
-}
-
 const toFdcProduct = (product, currencyCode) => ({
   ...product,
   id: getShopifyIdSubstring(product?.id),
@@ -107,4 +89,22 @@ export async function findProductsByIds(client, ids) {
     return products.map((product) => toFdcProduct(product, currencyCode));
   }
   return [];
+}
+
+export async function findFDCProducts(client, fdcVariantsFromDB) {
+  return findProductsByIds(client, fdcVariantsFromDB);
+}
+
+export async function getFdcVariantsFromDB() {
+  const variants = await getVariants();
+  const mappedVariantsByProductId = indexedByProductId(variants);
+
+  return mappedVariantsByProductId;
+}
+
+export async function getFdcVariantsByProductIdFromDB(productId) {
+  const variants = await getVariantsByProductId(productId);
+  const mappedVariantsByProductId = indexedByProductId(variants);
+
+  return mappedVariantsByProductId;
 }

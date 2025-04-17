@@ -40,3 +40,6 @@ ALTER TABLE fdc_variants
     ALTER COLUMN wholesale_variant_id DROP NOT NULL,
     ALTER COLUMN no_of_items_per_package DROP NOT NULL,
     ADD COLUMN "enabled" boolean NOT NULL DEFAULT false;
+
+
+create unique index idx_product_variant on fdc_variants (product_id, retail_variant_id);

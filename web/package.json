@@ -12,7 +12,7 @@
     "node": ">=14.13.1"
   },
   "dependencies": {
-    "@datafoodconsortium/connector": "^1.0.0-alpha.9",
+    "@datafoodconsortium/connector": "jgaehring/connector-typescript#rc-alpha-10",
     "@shopify/app": "^3.58.2",
     "@shopify/cli": "^3.63.1",
     "@shopify/shopify-app-express": "^5.0.1",
