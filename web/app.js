@@ -16,8 +16,9 @@ import ProductsModules from "./api-modules/products/index.js";
 import UsersModules from "./api-modules/users/index.js";
 import checkOnlineSession from "./middleware/checkOnlineSession.js";
 
-import fdcOrderRoutes from "./fdc-modules/orders/index.js";
-import fdcProductRoutes from "./fdc-modules/products/index.js";
+import fdcOrderRoutes from './fdc-modules/orders/index.js';
+import fdcProductRoutes from './fdc-modules/products/index.js';
+import { checkShopOnboarding } from './middleware/checkShopOnboarding.js';
 
 dotenv.config();
 
@@ -55,6 +56,7 @@ app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
   shopify.auth.callback(),
+  checkShopOnboarding,
   shopify.redirectToShopifyOrAppRoot()
 );
 

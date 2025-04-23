@@ -1,4 +1,7 @@
-CREATE USER fdc_appuser WITH PASSWORD 'fdc_appuser' ;
+CREATE USER fdc_appuser WITH PASSWORD 'fdc_appuser' CREATEDB CREATEROLE SUPERUSER;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fdc_appuser;
 
 CREATE DATABASE fdc_hub;
 GRANT ALL PRIVILEGES ON DATABASE fdc_hub TO fdc_appuser;
@@ -7,3 +10,7 @@ ALTER DATABASE fdc_hub OWNER TO fdc_appuser;
 CREATE DATABASE fdc_producer;
 GRANT ALL PRIVILEGES ON DATABASE fdc_producer TO fdc_appuser;
 ALTER DATABASE fdc_producer OWNER TO fdc_appuser;
+
+CREATE DATABASE shop_registry;
+GRANT ALL PRIVILEGES ON DATABASE shop_registry TO fdc_appuser;
+ALTER DATABASE shop_registry OWNER TO fdc_appuser;
