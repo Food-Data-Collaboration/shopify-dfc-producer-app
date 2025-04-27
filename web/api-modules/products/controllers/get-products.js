@@ -2,10 +2,11 @@ import ProductUseCases from '../use-cases/index.js';
 
 const getProducts = async (req, res) => {
   try {
-    const { shopifySession } = req;
+    const { shopifySession, shopName } = req;
 
     const products = await ProductUseCases.getProducts({
-      session: shopifySession
+      session: shopifySession,
+      shopName
     });
 
     if (!products.length) {

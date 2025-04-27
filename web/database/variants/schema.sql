@@ -12,4 +12,7 @@ CREATE TABLE IF NOT EXISTS "fdc_variants" (
 );
 CREATE TRIGGER set_timestamp BEFORE
 UPDATE ON "fdc_variants" FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();
+
+CREATE UNIQUE INDEX idx_product_variant ON fdc_variants (product_id, retail_variant_id);
+
 COMMIT;

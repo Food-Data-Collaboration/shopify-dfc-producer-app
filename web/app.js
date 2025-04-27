@@ -19,6 +19,7 @@ import checkOnlineSession from "./middleware/checkOnlineSession.js";
 import fdcOrderRoutes from './fdc-modules/orders/index.js';
 import fdcProductRoutes from './fdc-modules/products/index.js';
 import { checkShopOnboarding } from './middleware/checkShopOnboarding.js';
+import populateShopId from './middleware/populateShopId.js';
 
 dotenv.config();
 
@@ -86,6 +87,7 @@ app.use(
   shopify.validateAuthenticatedSession(),
   express.json(),
   checkOnlineSession,
+  populateShopId,
   ProductsModules.Controllers,
   errorMiddleware
 );
@@ -94,6 +96,7 @@ app.use(
   shopify.validateAuthenticatedSession(),
   express.json(),
   checkOnlineSession,
+  populateShopId,
   UsersModules.Controllers,
   errorMiddleware
 );
