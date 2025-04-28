@@ -55,7 +55,7 @@ const shopify = shopifyApp({
   webhooks: {
     path: '/api/webhooks'
   },
-  sessionStorage: new PostgreSQLSessionStorage(config.DATABASE_URL)
+  sessionStorage: new PostgreSQLSessionStorage(`${config.DATABASE_HOST_URL}/${config.SHOP_REGISTRY_DATABASE_NAME}`)
 });
 
 export default shopify;

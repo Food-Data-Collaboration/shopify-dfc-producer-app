@@ -8,7 +8,6 @@ dotenv.config({ path: path.join(envDir, '.env') });
 
 const schema = yup.object().shape({
   SHOPIFY_API_KEY: yup.string(),
-  DATABASE_URL: yup.string(),
   SHOPIFY_API_SECRET_KEY: yup.string(),
   OIDC_CLIENT_ID: yup.string(),
   OIDC_CLIENT_SECRET: yup.string(),
@@ -16,8 +15,9 @@ const schema = yup.object().shape({
   PRODUCER_SHOP_URL: yup.string(),
   PRODUCER_SHOP_NAME: yup.string(),
   NODE_ENV: yup.string(),
+  DATABASE_HOST_URL: yup.string(),
+  SHOP_REGISTRY_DATABASE_NAME: yup.string()
 });
-
 
 const createConfig = () => {
   let envVars;
@@ -30,7 +30,6 @@ const createConfig = () => {
   }
 
   return {
-    DATABASE_URL: envVars.DATABASE_URL,
     SHOPIFY_API_KEY: envVars.SHOPIFY_API_KEY,
     SHOPIFY_API_SECRET_KEY: envVars.SHOPIFY_API_SECRET_KEY,
     HOST: envVars.HOST,
@@ -39,6 +38,8 @@ const createConfig = () => {
     PRODUCER_SHOP_URL: envVars.PRODUCER_SHOP_URL,
     PRODUCER_SHOP_NAME: envVars.PRODUCER_SHOP_NAME,
     NODE_ENV: envVars.NODE_ENV,
+    DATABASE_HOST_URL: envVars.DATABASE_HOST_URL,
+    SHOP_REGISTRY_DATABASE_NAME: envVars.SHOP_REGISTRY_DATABASE_NAME
   };
 };
 
