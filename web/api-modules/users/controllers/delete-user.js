@@ -2,6 +2,7 @@ import { query } from '../../../database/connect.js';
 
 const deleteUser = async (req, res, next) => {
   const { id: userId } = req.params;
+  const { shopName } = req;
 
   if (!userId) {
     return res.status(400).json({
@@ -11,7 +12,7 @@ const deleteUser = async (req, res, next) => {
   }
 
   try {
-    await query('DELETE FROM users WHERE user_id = $1', [userId]);
+    await query('DELETE FROM users WHERE user_id = $1', [userId], undefined, shopName);
 
     return res.status(200).json({
       message: 'User deleted successfully',
