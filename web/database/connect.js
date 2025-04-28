@@ -37,12 +37,12 @@ const pool = centralPool;
 /**
  * Get shop connection details from the registry
  * @param {string} shopId - The shop ID to get connection details for
- * @returns {Promise<{dbUser: string, dbPassword: string, dbName: string}>}
+ * @returns {Promise<{dbName: string}>}
  */
 const getShopConnectionDetails = async (shopId) => {
   try {
     const result = await centralPool.query(
-      'SELECT shop_name, db_username, db_password, db_name FROM shops WHERE shop_name = $1',
+      'SELECT shop_name, db_name FROM shops WHERE shop_name = $1',
       [shopId]
     );
 
@@ -52,8 +52,6 @@ const getShopConnectionDetails = async (shopId) => {
 
     const shop = result.rows[0];
     return {
-      dbUser: shop.db_username,
-      dbPassword: shop.db_password,
       dbName: shop.db_name
     };
   } catch (error) {
@@ -84,18 +82,10 @@ const getShopDbConnection = async (shopId) => {
     throw new Error(`No database found for shop ID: ${shopId}`);
   }
 
-  // Extract host and port from DATABASE_HOST_URL
-  const hostUrlMatch = config.DATABASE_HOST_URL.match(/postgres:\/\/(.*):(.*)@(.*):(.*)/);
-  if (!hostUrlMatch) {
-    throw new Error('Invalid DATABASE_HOST_URL format');
-  }
+  const shopConnectionString = `${config.DATABASE_HOST_URL}/${connectionDetails.dbName}`;
 
   const shopPool = new Pool({
-    host: hostUrlMatch[3],
-    port: parseInt(hostUrlMatch[4] || '5432', 10),
-    user: connectionDetails.dbUser,
-    password: connectionDetails.dbPassword,
-    database: connectionDetails.dbName,
+    connectionString: shopConnectionString,
     max: 20,
     ssl: { rejectUnauthorized: false, require: true },
     idleTimeoutMillis: 30000
