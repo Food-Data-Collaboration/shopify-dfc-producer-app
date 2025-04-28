@@ -67,6 +67,7 @@ app.use("/fdc", cors(), express.json(), legacyfdcRouter, errorMiddleware);
 app.use(
   "/api/dfc/Enterprises/:EnterpriseName/Orders",
   cors(),
+  express.text({ type: "*/json" }),
   populateShopId,
   checkUserAccessPermissions,
   fdcOrderRoutes,
