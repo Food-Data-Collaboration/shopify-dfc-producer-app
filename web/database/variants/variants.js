@@ -4,9 +4,9 @@ async function getVariants(shopName) {
   return (await query('SELECT * FROM fdc_variants order by product_id', undefined, undefined, shopName)).rows;
 }
 
-async function getVariantsByProductId(productId) {
+async function getVariantsByProductId(productId, shopName) {
   return (
-    await query('SELECT * FROM fdc_variants where product_id = $1', [productId])
+    await query('SELECT * FROM fdc_variants where product_id = $1', [productId], undefined, shopName)
   ).rows;
 }
 
