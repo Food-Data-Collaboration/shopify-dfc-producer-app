@@ -68,6 +68,7 @@ app.use(
   "/api/dfc/Enterprises/:EnterpriseName/Orders",
   cors(),
   express.text({ type: "*/json" }),
+  populateShopId,
   checkUserAccessPermissions,
   fdcOrderRoutes,
   errorMiddleware
@@ -77,6 +78,7 @@ app.use(
   "/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts",
   cors(),
   express.json(),
+  populateShopId,
   checkUserAccessPermissions,
   fdcProductRoutes,
   errorMiddleware
