@@ -18,7 +18,7 @@ import checkOnlineSession from './middleware/checkOnlineSession.js';
 
 import fdcOrderRoutes from './fdc-modules/orders/index.js';
 import fdcProductRoutes from './fdc-modules/products/index.js';
-import enterpriseInformation from './fdc-modules/enterprises/index.js';
+import { getEnterprise, getEnterprises } from './fdc-modules/enterprises/controllers/index.js';
 import { checkShopOnboarding } from './middleware/checkShopOnboarding.js';
 import populateShopId from './middleware/populateShopId.js';
 
@@ -65,12 +65,21 @@ app.get(
 app.use('/fdc', cors(), express.json(), legacyfdcRouter, errorMiddleware);
 
 app.get(
+  '/api/dfc/Enterprises',
+  cors(),
+  express.text({ type: '*/json' }),
+  checkUserAccessPermissions,
+  getEnterprises,
+  errorMiddleware
+);
+
+app.get(
   '/api/dfc/Enterprises/:EnterpriseName',
   cors(),
   express.text({ type: '*/json' }),
   populateShopId,
   checkUserAccessPermissions,
-  enterpriseInformation,
+  getEnterprise,
   errorMiddleware
 );
 

@@ -60,6 +60,19 @@ const getShopConnectionDetails = async (shopId) => {
   }
 };
 
+const getAllShopNames = async () => {
+  try {
+    const result = await centralPool.query(
+      'SELECT shop_name FROM shops'
+    );
+
+    return result.rows.map((row) => row.shop_name);
+  } catch (error) {
+    console.error('Error getting shop names:', error);
+    throw error;
+  }
+};
+
 /**
  * Get a database connection pool for a specific shop
  * @param {string} shopId - The shop ID to get a connection for
@@ -146,5 +159,6 @@ export {
   pool,
   centralPool,
   getShopDbConnection,
-  getShopConnectionDetails
+  getShopConnectionDetails,
+  getAllShopNames
 };
