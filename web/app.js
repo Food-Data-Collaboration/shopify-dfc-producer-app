@@ -14,6 +14,7 @@ import checkUserAccessPermissions from "./middleware/checkUserAccessPermissions.
 
 import ProductsModules from "./api-modules/products/index.js";
 import UsersModules from "./api-modules/users/index.js";
+import ShopModules from './api-modules/shop/index.js';
 import checkOnlineSession from "./middleware/checkOnlineSession.js";
 
 import fdcOrderRoutes from './fdc-modules/orders/index.js';
@@ -93,6 +94,7 @@ app.use(
   ProductsModules.Controllers,
   errorMiddleware
 );
+
 app.use(
   "/api/hub-users",
   shopify.validateAuthenticatedSession(),
@@ -100,6 +102,16 @@ app.use(
   checkOnlineSession,
   populateShopId,
   UsersModules.Controllers,
+  errorMiddleware
+);
+
+app.use(
+  "/api/shop",
+  shopify.validateAuthenticatedSession(),
+  express.json(),
+  checkOnlineSession,
+  populateShopId,
+  ShopModules.Controllers,
   errorMiddleware
 );
 

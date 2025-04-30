@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import react from '@vitejs/plugin-react';
-import dotenv from 'dotenv'
-import { join } from 'path';
+import dotenv from 'dotenv';
 
 dotenv.config({ path: join(process.cwd(), '../.env') });
 
@@ -49,8 +48,7 @@ export default defineConfig({
   root: dirname(fileURLToPath(import.meta.url)),
   plugins: [react()],
   define: {
-    'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY),
-    'process.env.VARIANT_MAPPINGS': process.env.VARIANT_MAPPINGS
+    'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY)
   },
   resolve: {
     preserveSymlinks: true
