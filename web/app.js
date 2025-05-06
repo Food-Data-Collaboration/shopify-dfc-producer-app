@@ -11,6 +11,7 @@ import shopify from './shopify.js';
 import webhookHandlers from './webhooks/index.js';
 
 import checkUserAccessPermissions from './middleware/checkUserAccessPermissions.js';
+import checkOrdersFeature from './middleware/checkOrdersFeature.js';
 
 import ProductsModules from './api-modules/products/index.js';
 import UsersModules from './api-modules/users/index.js';
@@ -90,6 +91,7 @@ app.use(
   express.text({ type: '*/json' }),
   populateShopId,
   checkUserAccessPermissions,
+  checkOrdersFeature,
   fdcOrderRoutes,
   errorMiddleware
 );
@@ -120,12 +122,13 @@ app.use(
   express.json(),
   checkOnlineSession,
   populateShopId,
+  checkOrdersFeature,
   UsersModules.Controllers,
   errorMiddleware
 );
 
 app.use(
-  "/api/shop",
+  '/api/shop',
   shopify.validateAuthenticatedSession(),
   express.json(),
   checkOnlineSession,

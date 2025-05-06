@@ -18,6 +18,7 @@ export default function App() {
   const pages = import.meta.globEager('./pages/**/!(*.test.[jt]sx)*.([jt]sx)');
   const [isSetupCompleted, setIsSetupCompleted] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [ordersFeatureEnabled, setOrdersFeatureEnabled] = useState(false);
 
   // A wrapper component to check setup status
   function SetupCheck() {
@@ -28,6 +29,7 @@ export default function App() {
     useEffect(() => {
       if (!shopLoading) {
         setIsSetupCompleted(shopData?.shop?.setupCompleted === true);
+        setOrdersFeatureEnabled(shopData?.shop?.ordersFeatureEnabled === true);
         setIsLoading(false);
       }
     }, [shopData, shopLoading]);
@@ -48,12 +50,16 @@ export default function App() {
     return (
       <>
         <NavigationMenu
-          navigationLinks={[
-            {
-              label: 'Hub Users',
-              destination: '/hubUsers'
-            }
-          ]}
+          navigationLinks={
+            ordersFeatureEnabled
+              ? [
+                {
+                  label: 'Hub Users',
+                  destination: '/hubUsers'
+                }
+              ]
+              : []
+          }
         />
         <Routes pages={pages} />
       </>

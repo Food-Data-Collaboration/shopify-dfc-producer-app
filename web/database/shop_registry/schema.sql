@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS shops (
   variant_mappings_enabled BOOLEAN DEFAULT NULL,
   installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   setup_completed BOOLEAN DEFAULT FALSE,
+  orders_feature_enabled BOOLEAN DEFAULT FALSE,
   db_name VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -32,4 +33,5 @@ COMMENT ON COLUMN shops.shop_name IS 'Unique name of the shop';
 COMMENT ON COLUMN shops.variant_mappings_enabled IS 'Whether variant mappings are enabled for this shop';
 COMMENT ON COLUMN shops.installed_at IS 'Timestamp when the app was installed';
 COMMENT ON COLUMN shops.setup_completed IS 'Whether initial setup has been completed';
+COMMENT ON COLUMN shops.orders_feature_enabled IS 'Feature flag for enabling orders functionality';
 COMMENT ON COLUMN shops.db_name IS 'Name of the database for this shop';
