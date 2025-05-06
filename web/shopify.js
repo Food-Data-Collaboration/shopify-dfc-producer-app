@@ -4,7 +4,6 @@ import '@shopify/shopify-api/adapters/node';
 import { LATEST_API_VERSION } from '@shopify/shopify-api';
 import { shopifyApp } from '@shopify/shopify-app-express';
 import { PostgreSQLSessionStorage } from '@shopify/shopify-app-session-storage-postgresql';
-import { restResources } from '@shopify/shopify-api/rest/admin/2023-01';
 import config from './config.js';
 
 const scopes = [
@@ -33,7 +32,6 @@ const apiObject =
   process.env.NODE_ENV === 'development'
     ? {
         apiVersion: LATEST_API_VERSION,
-        restResources,
         billing: undefined,
         apiSecretKey: config.SHOPIFY_API_SECRET_KEY,
         HOST: config.HOST,
@@ -41,7 +39,6 @@ const apiObject =
       }
     : {
         apiVersion: LATEST_API_VERSION,
-        restResources,
         billing: undefined,
         scopes
       };

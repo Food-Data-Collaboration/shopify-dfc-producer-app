@@ -1,47 +1,48 @@
 /* eslint-disable function-paren-newline */
 // @ts-nocheck
-import { join } from "path";
-import { readFileSync } from "fs";
-import dotenv from "dotenv";
-import express from "express";
-import serveStatic from "serve-static";
-import cors from "cors";
-import legacyfdcRouter from "./legacy-fdc-modules/legacy-fdc-routers.js";
-import shopify from "./shopify.js";
-import webhookHandlers from "./webhooks/index.js";
+import { join } from 'path';
+import { readFileSync } from 'fs';
+import dotenv from 'dotenv';
+import express from 'express';
+import serveStatic from 'serve-static';
+import cors from 'cors';
+import legacyfdcRouter from './legacy-fdc-modules/legacy-fdc-routers.js';
+import shopify from './shopify.js';
+import webhookHandlers from './webhooks/index.js';
 
-import checkUserAccessPermissions from "./middleware/checkUserAccessPermissions.js";
+import checkUserAccessPermissions from './middleware/checkUserAccessPermissions.js';
 
-import ProductsModules from "./api-modules/products/index.js";
-import UsersModules from "./api-modules/users/index.js";
+import ProductsModules from './api-modules/products/index.js';
+import UsersModules from './api-modules/users/index.js';
 import ShopModules from './api-modules/shop/index.js';
-import checkOnlineSession from "./middleware/checkOnlineSession.js";
+import checkOnlineSession from './middleware/checkOnlineSession.js';
 
 import fdcOrderRoutes from './fdc-modules/orders/index.js';
 import fdcProductRoutes from './fdc-modules/products/index.js';
+import { getEnterprise, getEnterprises } from './fdc-modules/enterprises/controllers/index.js';
 import { checkShopOnboarding } from './middleware/checkShopOnboarding.js';
 import populateShopId from './middleware/populateShopId.js';
 
 dotenv.config();
 
 const errorMiddleware = (err, _req, res, _next) => {
-  if (err.name === "ValidationError") {
+  if (err.name === 'ValidationError') {
     return res.status(400).json({
       success: false,
       // @ts-ignore
-      message: err.message,
+      message: err.message
     });
   }
 
   // @ts-ignore
   return res.status(500).json({
     message: err.message,
-    stack: err.stack,
+    stack: err.stack
   });
 };
 
 const STATIC_PATH =
-  process.env.NODE_ENV === "production"
+  process.env.NODE_ENV === 'production'
     ? `${process.cwd()}/frontend/dist`
     : `${process.cwd()}/frontend/`;
 
@@ -50,7 +51,7 @@ const app = express();
 app.post(
   shopify.config.webhooks.path,
   shopify.processWebhooks({
-    webhookHandlers,
+    webhookHandlers
   })
 );
 
@@ -62,13 +63,31 @@ app.get(
   shopify.redirectToShopifyOrAppRoot()
 );
 
-app.use("/fdc", cors(), express.json(), legacyfdcRouter, errorMiddleware);
+app.use('/fdc', cors(), express.json(), legacyfdcRouter, errorMiddleware);
 
-//todo: Who's enterprise is this? Is a hub posting to their own enterprise endpoint? Is it something that exists on the producer? Ask Garethe
-app.use(
-  "/api/dfc/Enterprises/:EnterpriseName/Orders",
+app.get(
+  '/api/dfc/Enterprises',
   cors(),
-  express.text({ type: "*/json" }),
+  express.text({ type: '*/json' }),
+  checkUserAccessPermissions,
+  getEnterprises,
+  errorMiddleware
+);
+
+app.get(
+  '/api/dfc/Enterprises/:EnterpriseName',
+  cors(),
+  express.text({ type: '*/json' }),
+  populateShopId,
+  checkUserAccessPermissions,
+  getEnterprise,
+  errorMiddleware
+);
+
+app.use(
+  '/api/dfc/Enterprises/:EnterpriseName/Orders',
+  cors(),
+  express.text({ type: '*/json' }),
   populateShopId,
   checkUserAccessPermissions,
   fdcOrderRoutes,
@@ -76,7 +95,7 @@ app.use(
 );
 
 app.use(
-  "/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts",
+  '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts',
   cors(),
   express.json(),
   populateShopId,
@@ -86,7 +105,7 @@ app.use(
 );
 
 app.use(
-  "/api/products",
+  '/api/products',
   shopify.validateAuthenticatedSession(),
   express.json(),
   checkOnlineSession,
@@ -96,7 +115,7 @@ app.use(
 );
 
 app.use(
-  "/api/hub-users",
+  '/api/hub-users',
   shopify.validateAuthenticatedSession(),
   express.json(),
   checkOnlineSession,
@@ -117,11 +136,11 @@ app.use(
 
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
-app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res) =>
+app.use('/*', shopify.ensureInstalledOnShop(), async (_req, res) =>
   res
     .status(200)
-    .set("Content-Type", "text/html")
-    .send(readFileSync(join(STATIC_PATH, "index.html")))
+    .set('Content-Type', 'text/html')
+    .send(readFileSync(join(STATIC_PATH, 'index.html')))
 );
 
 app.use(errorMiddleware);
