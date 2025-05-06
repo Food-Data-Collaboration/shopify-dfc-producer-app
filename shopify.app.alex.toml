@@ -1,0 +1,27 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "2b97642439f3a3a7d535d1f7ed1ade5e"
+name = "alex-fdc-producer-app"
+handle = "alex-fdc-producer-app"
+application_url = "https://cia-hardly-vi-bills.trycloudflare.com"
+embedded = true
+
+[webhooks]
+api_version = "2024-01"
+
+[auth]
+redirect_urls = [
+  "https://cia-hardly-vi-bills.trycloudflare.com/auth/callback",
+  "https://cia-hardly-vi-bills.trycloudflare.com/auth/shopify/callback",
+  "https://cia-hardly-vi-bills.trycloudflare.com/api/auth/callback"
+]
+
+[pos]
+embedded = false
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_customers,write_draft_orders,write_products,read_products,read_inventory,read_locations,write_draft_orders,unauthenticated_read_content"
+
+[build]
+automatically_update_urls_on_dev = true

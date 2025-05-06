@@ -32,4 +32,3 @@ web/test-database.sqlite
 
 .yarn
 .shopify
-shopify.app.toml
