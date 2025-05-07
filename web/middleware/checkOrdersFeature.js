@@ -28,7 +28,7 @@ const checkOrdersFeature = async (req, res, next) => {
     if (!ordersFeatureEnabled) {
       return res.status(403).json({
         success: false,
-        message: 'Orders feature is not enabled for this shop'
+        message: 'Orders API is not enabled for this shop'
       });
     }
 
