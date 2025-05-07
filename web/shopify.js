@@ -25,7 +25,8 @@ const scopes = [
   'read_third_party_fulfillment_orders',
   'write_third_party_fulfillment_orders',
   'read_payment_terms',
-  'write_payment_terms'
+  'write_payment_terms',
+  'unauthenticated_read_product_listings'
 ];
 
 const apiObject =
