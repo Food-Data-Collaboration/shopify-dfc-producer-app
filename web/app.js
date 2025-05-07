@@ -6,10 +6,10 @@ import dotenv from 'dotenv';
 import express from 'express';
 import serveStatic from 'serve-static';
 import cors from 'cors';
+import morgan from 'morgan';
 import legacyfdcRouter from './legacy-fdc-modules/legacy-fdc-routers.js';
 import shopify from './shopify.js';
 import webhookHandlers from './webhooks/index.js';
-
 import checkUserAccessPermissions from './middleware/checkUserAccessPermissions.js';
 import checkOrdersFeature from './middleware/checkOrdersFeature.js';
 
@@ -48,6 +48,8 @@ const STATIC_PATH =
     : `${process.cwd()}/frontend/`;
 
 const app = express();
+
+app.use(morgan('combined'));
 
 app.post(
   shopify.config.webhooks.path,
