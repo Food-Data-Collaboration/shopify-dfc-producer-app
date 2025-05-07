@@ -48,7 +48,7 @@ async function createVariantSuppliedProduct(
     const connector = await loadConnectorWithResources();
     const kilogram = connector.MEASURES.UNIT.QUANTITYUNIT.KILOGRAM;
 
-    const semanticBase = `${config.PRODUCER_SHOP_URL}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${variant.id}`;
+    const semanticBase = `${config.APP_URL}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${variant.id}`;
 
     const quantity = createQuantitativeValue(
       connector,
@@ -120,7 +120,7 @@ async function createMappedVariant(
 
   const connector = await loadConnectorWithResources();
 
-  const semanticBase = `${config.PRODUCER_SHOP_URL}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${retailVariant.id}`;
+  const semanticBase = `${config.APP_URL}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${retailVariant.id}`;
 
   const plannedConsumptionFlow = connector.createPlannedConsumptionFlow({
     semanticId: `${semanticBase}/AsPlannedConsumptionFlow`,
@@ -199,7 +199,7 @@ const createVariants = async (
 const createParent = async (product, enterpriseName) => {
   const connector = await loadConnectorWithResources();
   const productTypes = await loadProductTypes();
-  const semanticBase = `${config.PRODUCER_SHOP_URL}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${product.id}`;
+  const semanticBase = `${config.APP_URL}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${product.id}`;
 
   return connector.createSuppliedProduct({
     connector,

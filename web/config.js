@@ -12,8 +12,7 @@ const schema = yup.object().shape({
   OIDC_CLIENT_ID: yup.string(),
   OIDC_CLIENT_SECRET: yup.string(),
   HOST: yup.string(),
-  PRODUCER_SHOP_URL: yup.string(),
-  PRODUCER_SHOP_NAME: yup.string(),
+  APP_URL: yup.string(),
   NODE_ENV: yup.string(),
   DATABASE_HOST_URL: yup.string(),
   SHOP_REGISTRY_DATABASE_NAME: yup.string()
@@ -35,8 +34,7 @@ const createConfig = () => {
     HOST: envVars.HOST,
     OIDC_CLIENT_ID: envVars.OIDC_CLIENT_ID,
     OIDC_CLIENT_SECRET: envVars.OIDC_CLIENT_SECRET,
-    PRODUCER_SHOP_URL: envVars.PRODUCER_SHOP_URL,
-    PRODUCER_SHOP_NAME: envVars.PRODUCER_SHOP_NAME,
+    APP_URL: envVars.APP_URL,
     NODE_ENV: envVars.NODE_ENV,
     DATABASE_HOST_URL: envVars.DATABASE_HOST_URL,
     SHOP_REGISTRY_DATABASE_NAME: envVars.SHOP_REGISTRY_DATABASE_NAME

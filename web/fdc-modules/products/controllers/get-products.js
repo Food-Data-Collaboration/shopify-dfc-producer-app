@@ -28,7 +28,8 @@ const getProducts = async (req, res) => {
 
     const dfcProducts = await createDFCProductsFromShopify(
       fdcProducts,
-      fdcVariantsFromDB
+      fdcVariantsFromDB,
+      EnterpriseName
     );
 
     return res.status(200).send(dfcProducts);

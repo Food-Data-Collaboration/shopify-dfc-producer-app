@@ -19,11 +19,11 @@ export async function extractOrderLine(payload) {
 }
 
 export async function extractOrderAndLinesAndSalesSession(payload) {
-  return await extract(payload, true);
+  return extract(payload, true);
 }
 
 export async function extractOrderAndLines(payload) {
-  return await extract(payload, false);
+  return extract(payload, false);
 }
 
 async function extract(payload, requireSalesSession) {
@@ -51,12 +51,11 @@ async function extract(payload, requireSalesSession) {
 
   if (!requireSalesSession) {
     return order;
-  } else {
-    if (saleSessions.length !== 1) {
-      throw Error('Graph must contain single SalesSession');
-    }
-    return { order, saleSession: saleSessions[0] };
   }
+  if (saleSessions.length !== 1) {
+    throw Error('Graph must contain single SalesSession');
+  }
+  return { order, saleSession: saleSessions[0] };
 }
 
 function createOrderLine(
@@ -68,7 +67,7 @@ function createOrderLine(
 ) {
   const suppliedProduct = connector.createSuppliedProduct({
     semanticId: `${
-      config.PRODUCER_SHOP_URL
+      config.APP_URL
     }api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${ids.extract(
       line.variant.id
     )}`
@@ -84,7 +83,7 @@ function createOrderLine(
   }
 
   const madeUpIdForTheOfferSoTheConnectorWorks = `${
-    config.PRODUCER_SHOP_URL
+    config.APP_URL
   }api/dfc/Enterprises/${enterpriseName}/Offers/${ids.extract(
     line.variant.id
   )}`;
@@ -106,10 +105,10 @@ function createOrderLine(
     offer,
     connector.createOrderLine({
       semanticId: `${
-        config.PRODUCER_SHOP_URL
+        config.APP_URL
       }api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}/orderLines/${mapping.externalId.toString()}`,
-      offer: offer,
-      price: price,
+      offer,
+      price,
       quantity: line.quantity
     })
   ];
@@ -125,15 +124,13 @@ function createOrderLines(
   const shopifyLineItems = shopifyDraftOrderResponse.lineItems;
   return shopifyLineItems
     .filter(({ custom }) => !custom)
-    .flatMap((line) => {
-      return createOrderLine(
-        connector,
-        line,
-        lineIdMappings,
-        enterpriseName,
-        orderId
-      );
-    });
+    .flatMap((line) => createOrderLine(
+      connector,
+      line,
+      lineIdMappings,
+      enterpriseName,
+      orderId
+    ));
 }
 
 async function createUnexportedDfcOrderFromShopify(
@@ -154,7 +151,7 @@ async function createUnexportedDfcOrderFromShopify(
   );
 
   const order = connector.createOrder({
-    semanticId: `${config.PRODUCER_SHOP_URL}api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}`,
+    semanticId: `${config.APP_URL}api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}`,
     lines: dfcOrderLinesGraph.filter((item) => item instanceof OrderLine),
     orderStatus: orderStatusFor(connector, shopifyDraftOrderResponse.status),
     fulfilmentStatus: fulfilmentStatusFor(
@@ -177,7 +174,7 @@ export async function createDfcOrderFromShopify(
     lineIdMappings,
     enterpriseName
   );
-  return await connector.export(graph);
+  return connector.export(graph);
 }
 
 export async function createBulkDfcOrderFromShopify(
@@ -197,7 +194,7 @@ export async function createBulkDfcOrderFromShopify(
         return [];
       }
 
-      return await createUnexportedDfcOrderFromShopify(
+      return createUnexportedDfcOrderFromShopify(
         draftOrderResponse,
         lineItemIdMapping.lineItems,
         enterpriseName
@@ -205,7 +202,7 @@ export async function createBulkDfcOrderFromShopify(
     })
   );
 
-  return await connector.export(megaGraph.flat());
+  return connector.export(megaGraph.flat());
 }
 
 export async function createDfcOrderLinesFromShopify(
@@ -224,7 +221,7 @@ export async function createDfcOrderLinesFromShopify(
     orderId
   );
 
-  return await connector.export(dfcOrderLines);
+  return connector.export(dfcOrderLines);
 }
 
 export async function createDfcOrderLineFromShopify(
@@ -245,10 +242,10 @@ export async function createDfcOrderLineFromShopify(
   }
 
   const line = shopifyDraftOrderResponse.lineItems.find(
-    (line) => ids.extract(line.id) === shopifyLineId
+    (l) => ids.extract(l.id) === shopifyLineId
   );
 
-  return await connector.export(
+  return connector.export(
     createOrderLine(connector, line, lineIdMappings, enterpriseName, orderId)
   );
 }
