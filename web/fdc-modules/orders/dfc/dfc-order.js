@@ -67,7 +67,7 @@ function createOrderLine(
 ) {
   const suppliedProduct = connector.createSuppliedProduct({
     semanticId: `${
-      config.APP_URL
+      config.HOST
     }api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${ids.extract(
       line.variant.id
     )}`
@@ -83,7 +83,7 @@ function createOrderLine(
   }
 
   const madeUpIdForTheOfferSoTheConnectorWorks = `${
-    config.APP_URL
+    config.HOST
   }api/dfc/Enterprises/${enterpriseName}/Offers/${ids.extract(
     line.variant.id
   )}`;
@@ -105,7 +105,7 @@ function createOrderLine(
     offer,
     connector.createOrderLine({
       semanticId: `${
-        config.APP_URL
+        config.HOST
       }api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}/orderLines/${mapping.externalId.toString()}`,
       offer,
       price,
@@ -151,7 +151,7 @@ async function createUnexportedDfcOrderFromShopify(
   );
 
   const order = connector.createOrder({
-    semanticId: `${config.APP_URL}api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}`,
+    semanticId: `${config.HOST}api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}`,
     lines: dfcOrderLinesGraph.filter((item) => item instanceof OrderLine),
     orderStatus: orderStatusFor(connector, shopifyDraftOrderResponse.status),
     fulfilmentStatus: fulfilmentStatusFor(
