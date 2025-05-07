@@ -47,6 +47,8 @@ const STATIC_PATH =
     ? `${process.cwd()}/frontend/dist`
     : `${process.cwd()}/frontend/`;
 
+console.log('static path is', STATIC_PATH);
+
 const app = express();
 
 app.use(morgan('combined'));
