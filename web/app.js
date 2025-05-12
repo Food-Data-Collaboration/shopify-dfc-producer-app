@@ -82,7 +82,7 @@ app.get(
   cors(),
   express.text({ type: '*/json' }),
   populateShop,
-  // checkUserAccessPermissions,
+  checkUserAccessPermissions,
   getEnterprise,
   errorMiddleware
 );
