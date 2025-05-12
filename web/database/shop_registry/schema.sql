@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS shops (
   setup_completed BOOLEAN DEFAULT FALSE,
   orders_feature_enabled BOOLEAN DEFAULT FALSE,
   db_name VARCHAR(255),
+  store_front_access_token VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

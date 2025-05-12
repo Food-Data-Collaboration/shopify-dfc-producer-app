@@ -6,8 +6,6 @@ import { findFDCProducts, getFdcVariantsFromDB } from './shopify/products.js';
 const getProducts = async (req, res) => {
   try {
     const { EnterpriseName } = req.params;
-    const { shopName } = req;
-
     const session = await getSession(`${EnterpriseName}.myshopify.com`);
 
     if (!session) {
@@ -15,7 +13,7 @@ const getProducts = async (req, res) => {
     }
     const client = new shopify.api.clients.Graphql({ session });
 
-    const fdcVariantsFromDB = await getFdcVariantsFromDB(shopName);
+    const fdcVariantsFromDB = await getFdcVariantsFromDB(EnterpriseName);
 
     if (Object.keys(fdcVariantsFromDB).length === 0) {
       return res.status(200).json('No products found');

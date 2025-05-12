@@ -22,7 +22,7 @@ import fdcOrderRoutes from './fdc-modules/orders/index.js';
 import fdcProductRoutes from './fdc-modules/products/index.js';
 import { getEnterprise, getEnterprises } from './fdc-modules/enterprises/controllers/index.js';
 import { checkShopOnboarding } from './middleware/checkShopOnboarding.js';
-import populateShopId from './middleware/populateShopId.js';
+import populateShop from './middleware/populateShopId.js';
 
 dotenv.config();
 
@@ -81,8 +81,8 @@ app.get(
   '/api/dfc/Enterprises/:EnterpriseName',
   cors(),
   express.text({ type: '*/json' }),
-  populateShopId,
-  checkUserAccessPermissions,
+  populateShop,
+  // checkUserAccessPermissions,
   getEnterprise,
   errorMiddleware
 );
@@ -91,7 +91,7 @@ app.use(
   '/api/dfc/Enterprises/:EnterpriseName/Orders',
   cors(),
   express.text({ type: '*/json' }),
-  populateShopId,
+  populateShop,
   checkUserAccessPermissions,
   checkOrdersFeature,
   fdcOrderRoutes,
@@ -102,7 +102,7 @@ app.use(
   '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts',
   cors(),
   express.json(),
-  populateShopId,
+  populateShop,
   checkUserAccessPermissions,
   fdcProductRoutes,
   errorMiddleware
@@ -113,7 +113,7 @@ app.use(
   shopify.validateAuthenticatedSession(),
   express.json(),
   checkOnlineSession,
-  populateShopId,
+  populateShop,
   ProductsModules.Controllers,
   errorMiddleware
 );
@@ -123,7 +123,7 @@ app.use(
   shopify.validateAuthenticatedSession(),
   express.json(),
   checkOnlineSession,
-  populateShopId,
+  populateShop,
   checkOrdersFeature,
   UsersModules.Controllers,
   errorMiddleware
@@ -134,7 +134,7 @@ app.use(
   shopify.validateAuthenticatedSession(),
   express.json(),
   checkOnlineSession,
-  populateShopId,
+  populateShop,
   ShopModules.Controllers,
   errorMiddleware
 );

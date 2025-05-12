@@ -1,6 +1,7 @@
 import { PhoneNumber } from '@datafoodconsortium/connector';
 import shopify from '../../../shopify.js';
 import getShopDetails from '../shopify/shop.js';
+import getLogo from '../shopify/storefront.js';
 import getSession from '../../../utils/getShopifySession.js';
 import loadConnectorWithResources from '../../../connector/index.js';
 import { getAllShopNames } from '../../../database/connect.js';
@@ -8,7 +9,7 @@ import {
   getVariants
 } from '../../../database/variants/variants.js';
 
-const buildSingleEnterprise = async (enterpriseName) => {
+const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
   const session = await getSession(`${enterpriseName}.myshopify.com`);
   const client = new shopify.api.clients.Graphql({ session });
 
@@ -21,7 +22,11 @@ const buildSingleEnterprise = async (enterpriseName) => {
   const [firstName, lastName] = shopOwnerName.split(' ');
   const mainContact = connector.createPerson({ semanticId: `/api/dfc/Enterprises/${enterpriseName}#mainContact`, firstName, lastName });
 
-  const enterprise = connector.createEnterprise({ semanticId: `/api/dfc/Enterprises/${enterpriseName}`, description, mainContact });
+  const logo = getLogo(enterpriseName, storeFrontAccessToken);
+
+  const enterprise = connector.createEnterprise({
+    semanticId: `/api/dfc/Enterprises/${enterpriseName}`, description, mainContact, logo
+  });
 
   const address = connector.createAddress({
     semanticId: `/api/dfc/Enterprises/${enterpriseName}/Addresses/1`,
@@ -60,7 +65,9 @@ const buildSingleEnterprise = async (enterpriseName) => {
 export const getEnterprise = async (req, res) => {
   try {
     const connector = await loadConnectorWithResources();
-    const graph = await connector.export(await buildSingleEnterprise(req.params.EnterpriseName));
+    const graph = await connector.export(
+      await buildSingleEnterprise(req.params.EnterpriseName, req.shop.storeFrontAccessToken)
+    );
     res.type('application/json');
     res.send(graph);
   } catch (error) {
