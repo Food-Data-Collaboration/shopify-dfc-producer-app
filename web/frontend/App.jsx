@@ -34,9 +34,6 @@ export default function App() {
       }
     }, [shopData, shopLoading]);
 
-    console.log('isLoading', isLoading);
-    console.log('shopLoading', shopLoading);
-
     if (isLoading || shopLoading) {
       return (
         <Card sectioned>
