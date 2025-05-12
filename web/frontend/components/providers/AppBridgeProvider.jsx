@@ -13,6 +13,7 @@ import { Banner, Layout, Page } from '@shopify/polaris';
  * See: https://shopify.dev/apps/tools/app-bridge/react-components
  */
 export function AppBridgeProvider({ children }) {
+  console.log('In App provider');
   const location = useLocation();
   const navigate = useNavigate();
   const history = useMemo(
@@ -50,6 +51,8 @@ export function AppBridgeProvider({ children }) {
       forceRedirect: true
     };
   });
+
+  console.log(appBridgeConfig);
 
   if (!process.env.SHOPIFY_API_KEY || !appBridgeConfig.host) {
     const bannerProps = !process.env.SHOPIFY_API_KEY
