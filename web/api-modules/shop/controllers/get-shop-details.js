@@ -1,13 +1,19 @@
-import { query } from '../../../database/connect.js';
+import { fetchShopDetails } from '../../../database/shop_registry/shops.js';
 
 const getShopDetails = async (req, res, next) => {
   try {
     const { shopName } = req;
 
-    const shopDetails = await query('SELECT shop_name, variant_mappings_enabled, setup_completed, orders_feature_enabled FROM shops WHERE shop_name = $1', [shopName]);
+    const shopDetails = await fetchShopDetails(shopName);
+
+    if (!shopDetails) {
+      return res.status(404).json({
+        error: 'Shop not found'
+      });
+    }
 
     return res.json({
-      shop: shopDetails.rows[0]
+      shop: shopDetails
     });
   } catch (err) {
     return next(err);

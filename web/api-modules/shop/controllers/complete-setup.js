@@ -3,11 +3,11 @@ import { query } from '../../../database/connect.js';
 const completeSetup = async (req, res, next) => {
   try {
     const { shopName } = req;
-    const { variantMappingsEnabled } = req.body;
+    const { variantMappingsEnabled, defaultProductType } = req.body;
 
     const result = await query(
-      'UPDATE shops SET variant_mappings_enabled = $1, setup_completed = true WHERE shop_name = $2 RETURNING *',
-      [variantMappingsEnabled, shopName]
+      'UPDATE shops SET variant_mappings_enabled = $1, default_product_type = $2, setup_completed = true WHERE shop_name = $3 RETURNING *',
+      [variantMappingsEnabled, defaultProductType, shopName]
     );
 
     if (result.rowCount === 0) {

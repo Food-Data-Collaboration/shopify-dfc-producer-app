@@ -10,11 +10,13 @@ import {
 } from '@shopify/polaris';
 import { useCallback, useState } from 'react';
 import { useAppMutation } from '../hooks';
+import ProductTypeSelector from '../components/ProductTypeSelector';
 
 export default function PostInstallationSetup() {
   const [variantMappingsEnabled, setVariantMappingsEnabled] = useState(false);
   const [setupSuccess, setSetupSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [defaultProductType, setDefaultProductType] = useState(null);
 
   const { mutateAsync, isLoading: isSaving } = useAppMutation({
     reactQueryOptions: {
@@ -40,7 +42,8 @@ export default function PostInstallationSetup() {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            variantMappingsEnabled
+            variantMappingsEnabled,
+            defaultProductType: defaultProductType.id || null
           })
         }
       });
@@ -52,7 +55,11 @@ export default function PostInstallationSetup() {
     } catch (error) {
       console.error('Error completing setup:', error);
     }
-  }, [variantMappingsEnabled, mutateAsync]);
+  }, [variantMappingsEnabled, defaultProductType, mutateAsync]);
+
+  const handleProductTypeChange = useCallback((type) => {
+    setDefaultProductType(type);
+  }, []);
 
   return (
     <Page>
@@ -97,6 +104,13 @@ export default function PostInstallationSetup() {
                   onChange={setVariantMappingsEnabled}
                 />
               </TextContainer>
+
+              <div style={{ marginTop: '20px', marginBottom: '20px' }}>
+                <ProductTypeSelector
+                  onChange={handleProductTypeChange}
+                  value={defaultProductType}
+                />
+              </div>
 
               <div style={{ marginTop: '20px' }}>
                 <Button

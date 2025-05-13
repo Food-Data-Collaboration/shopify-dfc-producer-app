@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS shops (
   installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   setup_completed BOOLEAN DEFAULT FALSE,
   orders_feature_enabled BOOLEAN DEFAULT FALSE,
+  default_product_type VARCHAR(255) DEFAULT NULL,
   db_name VARCHAR(255),
   store_front_access_token VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -35,4 +36,5 @@ COMMENT ON COLUMN shops.variant_mappings_enabled IS 'Whether variant mappings ar
 COMMENT ON COLUMN shops.installed_at IS 'Timestamp when the app was installed';
 COMMENT ON COLUMN shops.setup_completed IS 'Whether initial setup has been completed';
 COMMENT ON COLUMN shops.orders_feature_enabled IS 'Feature flag for enabling orders functionality';
+COMMENT ON COLUMN shops.default_product_type IS 'Default product type selected by the shop owner during onboarding';
 COMMENT ON COLUMN shops.db_name IS 'Name of the database for this shop';

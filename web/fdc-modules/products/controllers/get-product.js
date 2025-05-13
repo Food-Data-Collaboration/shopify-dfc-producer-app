@@ -9,6 +9,7 @@ import {
 const getProduct = async (req, res) => {
   try {
     const { EnterpriseName, ProductId } = req.params;
+    const { shopDefaultProductType } = req;
 
     const session = await getSession(`${EnterpriseName}.myshopify.com`);
 
@@ -32,7 +33,8 @@ const getProduct = async (req, res) => {
     const dfcProducts = await createDFCProductsFromShopify(
       fdcProduct,
       fdcVariantsFromDB,
-      EnterpriseName
+      EnterpriseName,
+      shopDefaultProductType
     );
 
     return res.status(200).send(dfcProducts);

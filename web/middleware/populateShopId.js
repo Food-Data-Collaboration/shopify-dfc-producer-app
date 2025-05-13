@@ -1,36 +1,28 @@
-import { query } from '../database/connect.js';
+import { fetchShopDetails } from '../database/shop_registry/shops.js';
 
 const populateShop = async (req, res, next) => {
   const { shopifySession } = req;
+  let shopName;
 
   if (req.params.EnterpriseName) {
-    const shopResult = await query(
-      'SELECT * FROM shops WHERE shop_name = $1',
-      [req.params.EnterpriseName]
-    );
+    shopName = req.params.EnterpriseName;
+  } else if (shopifySession) {
+    shopName = shopifySession.shop.replace('.myshopify.com', '');
+  } else {
+    return next('No Shopify session found');
+  }
 
-    if (shopResult.rows.length > 0) {
-      const {
-        shopName,
-        storeFrontAccessToken
-      } = shopResult.rows[0];
-      req.shop = { shopName, storeFrontAccessToken };
-      return next();
-    }
+  const shopDetails = await fetchShopDetails(shopName);
+
+  if (!shopDetails) {
     return res.status(404).json({
       error: 'Shop not found'
     });
   }
 
-  if (!shopifySession) {
-    return next('No Shopify session found');
-  }
-
-  const { shop } = shopifySession;
-
-  const shopName = shop.replace('.myshopify.com', '');
-
   req.shopName = shopName;
+  req.shopDefaultProductType = shopDetails.defaultProductType;
+  req.shop = { shopName, storeFrontAccessToken: shopDetails.storeFrontAccessToken };
 
   return next();
 };
