@@ -1,9 +1,10 @@
 import SuppliedProduct from '@datafoodconsortium/connector/lib/SuppliedProduct.js';
-import { throwError } from '../utils/index.js';
-import loadConnectorWithResources from './index.js';
-import loadProductTypes from './mappedProductTypes.js';
+import { SKOSConcept } from '@datafoodconsortium/connector';
 import config from '../config.js';
 import currencyMeasureFor from '../utils/currencyMeasureFor.js';
+import { throwError } from '../utils/index.js';
+import { fetchProductTypeById } from '../utils/productTypes.js';
+import loadConnectorWithResources from './index.js';
 
 const createQuantitativeValue = (connector, value, unit) =>
   connector.createQuantity({
@@ -42,7 +43,8 @@ const createCatalogItem = (
 async function createVariantSuppliedProduct(
   parentProduct,
   variant,
-  enterpriseName
+  enterpriseName,
+  shopDefaultProductType
 ) {
   try {
     const connector = await loadConnectorWithResources();
@@ -73,7 +75,9 @@ async function createVariantSuppliedProduct(
       inventoryQuantity
     );
 
-    const productTypes = await loadProductTypes();
+    const productType = fetchProductTypeById(
+      shopDefaultProductType
+    );
 
     const suppliedProduct = connector.createSuppliedProduct({
       connector,
@@ -82,7 +86,10 @@ async function createVariantSuppliedProduct(
       description: parentProduct.descriptionHtml,
       quantity,
       catalogItems: [catalogItem],
-      productType: productTypes[parentProduct.productType] ?? null
+      productType: productType ? new SKOSConcept({
+        semanticId: productType.id,
+        connector
+      }) : null
     });
 
     const image = variant.image?.src || parentProduct.images[0]?.src;
@@ -103,19 +110,22 @@ async function createMappedVariant(
   retailVariant,
   wholesaleVariant,
   noOfItemsPerPackage,
-  enterpriseName
+  enterpriseName,
+  shopDefaultProductType
 ) {
   const [retailSuppliedProduct, ...retailOthers] =
     await createVariantSuppliedProduct(
       shopifyProduct,
       retailVariant,
-      enterpriseName
+      enterpriseName,
+      shopDefaultProductType
     );
   const [wholesaleSuppliedProduct, ...wholesaleOthers] =
     await createVariantSuppliedProduct(
       shopifyProduct,
       wholesaleVariant,
-      enterpriseName
+      enterpriseName,
+      shopDefaultProductType
     );
 
   const connector = await loadConnectorWithResources();
@@ -161,7 +171,8 @@ async function createMappedVariant(
 const createVariants = async (
   shopifyProduct,
   variantMapping,
-  enterpriseName
+  enterpriseName,
+  shopDefaultProductType
 ) => {
   const { wholesaleVariantId, retailVariantId, noOfItemsPerPackage } =
     variantMapping;
@@ -186,31 +197,39 @@ const createVariants = async (
       retailVariant,
       wholesaleVariant,
       noOfItemsPerPackage,
-      enterpriseName
+      enterpriseName,
+      shopDefaultProductType
     );
   }
   return createVariantSuppliedProduct(
     shopifyProduct,
     retailVariant,
-    enterpriseName
+    enterpriseName,
+    shopDefaultProductType
   );
 };
 
-const createParent = async (product, enterpriseName) => {
+const createParent = async (product, enterpriseName, shopDefaultProductType) => {
   const connector = await loadConnectorWithResources();
-  const productTypes = await loadProductTypes();
   const semanticBase = `${config.HOST}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${product.id}`;
+
+  const productType = fetchProductTypeById(
+    shopDefaultProductType
+  );
 
   return connector.createSuppliedProduct({
     connector,
     semanticId: semanticBase,
     name: product.title,
     description: product.descriptionHtml,
-    productType: productTypes[product.productType] ?? null
+    productType: productType ? new SKOSConcept({
+      semanticId: productType.id,
+      connector
+    }) : null
   });
 };
 
-async function createSuppliedProducts(productsFromShopify, enterpriseName) {
+async function createSuppliedProducts(productsFromShopify, enterpriseName, shopDefaultProductType) {
   try {
     if (
       !Array.isArray(productsFromShopify) ||
@@ -220,10 +239,19 @@ async function createSuppliedProducts(productsFromShopify, enterpriseName) {
     }
 
     const productsPromises = productsFromShopify.map(async (product) => {
-      const variantsGraph = (await Promise.all(product.fdcVariants
-        .filter(({ enabled }) => enabled)
-        .flatMap(async (variant) => createVariants(product, variant, enterpriseName))))
-        .flat();
+      const variantsGraph = (
+        await Promise.all(
+          product.fdcVariants
+            .filter(({ enabled }) => enabled)
+            .flatMap(async (variant) =>
+              createVariants(
+                product,
+                variant,
+                enterpriseName,
+                shopDefaultProductType
+              ))
+        )
+      ).flat();
 
       const variants = variantsGraph.filter((item) => item instanceof SuppliedProduct);
 
@@ -231,7 +259,7 @@ async function createSuppliedProducts(productsFromShopify, enterpriseName) {
         return [];
       }
 
-      const parent = await createParent(product, enterpriseName);
+      const parent = await createParent(product, enterpriseName, shopDefaultProductType);
       parent.setVariants(variants);
       variants.forEach((variant) => variant.addIsVariantOf(parent));
       return [parent, ...variantsGraph];
@@ -242,7 +270,7 @@ async function createSuppliedProducts(productsFromShopify, enterpriseName) {
   }
 }
 
-async function exportSuppliedProducts(productsFromShopify, enterpriseName) {
+async function exportSuppliedProducts(productsFromShopify, enterpriseName, shopDefaultProductType) {
   try {
     if (
       !Array.isArray(productsFromShopify) ||
@@ -255,7 +283,8 @@ async function exportSuppliedProducts(productsFromShopify, enterpriseName) {
 
     const suppliedDFCProducts = await createSuppliedProducts(
       productsFromShopify,
-      enterpriseName
+      enterpriseName,
+      shopDefaultProductType
     );
 
     if (suppliedDFCProducts.length === 0) {

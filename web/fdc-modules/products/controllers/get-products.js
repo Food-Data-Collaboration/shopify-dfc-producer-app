@@ -6,6 +6,8 @@ import { findFDCProducts, getFdcVariantsFromDB } from './shopify/products.js';
 const getProducts = async (req, res) => {
   try {
     const { EnterpriseName } = req.params;
+    const { shopDefaultProductType } = req;
+
     const session = await getSession(`${EnterpriseName}.myshopify.com`);
 
     if (!session) {
@@ -27,7 +29,8 @@ const getProducts = async (req, res) => {
     const dfcProducts = await createDFCProductsFromShopify(
       fdcProducts,
       fdcVariantsFromDB,
-      EnterpriseName
+      EnterpriseName,
+      shopDefaultProductType
     );
 
     return res.status(200).send(dfcProducts);
