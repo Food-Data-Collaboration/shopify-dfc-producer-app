@@ -25,6 +25,8 @@ export default async function getLogo(store, storeFrontAccessToken) {
 
   const result = await response.json();
 
+  console.log('Result from storefront api:', JSON.stringify(result));
+
   if (!result?.data?.shop?.brand?.logo?.image?.url) {
     return null;
   }
