@@ -55,6 +55,15 @@ async function authorise(accessToken, req, res, next) {
   const { name } = tokenSet;
   const { shopName } = req;
 
+  req.user = {
+    id: userId,
+    email: tokenSet.email
+  };
+
+  if (!(req.baseUrl + req.path).includes('/Orders')) {
+    return next();
+  }
+
   try {
     const user = await query('SELECT * FROM users WHERE user_id = $1', [
       userId
@@ -78,10 +87,6 @@ async function authorise(accessToken, req, res, next) {
     const { status } = user.rows[0];
 
     if (status) {
-      req.user = {
-        id: userId,
-        email: tokenSet.email
-      };
       return next();
     }
 
