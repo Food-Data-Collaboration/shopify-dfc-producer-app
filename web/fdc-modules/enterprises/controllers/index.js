@@ -22,7 +22,7 @@ const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
   const [firstName, lastName] = shopOwnerName.split(' ');
   const mainContact = connector.createPerson({ semanticId: `/api/dfc/Enterprises/${enterpriseName}#mainContact`, firstName, lastName });
 
-  const logo = getLogo(enterpriseName, storeFrontAccessToken);
+  const logo = await getLogo(enterpriseName, storeFrontAccessToken);
 
   const enterprise = connector.createEnterprise({
     semanticId: `/api/dfc/Enterprises/${enterpriseName}`, description, mainContact, logo
@@ -59,7 +59,7 @@ const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
     }))
     .forEach((product) => enterprise.supplyProduct(product));
 
-  return [enterprise, address];
+  return [enterprise, address, mainContact];
 };
 
 export const getEnterprise = async (req, res) => {
