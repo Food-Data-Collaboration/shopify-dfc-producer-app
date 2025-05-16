@@ -14,7 +14,7 @@ const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
   const client = new shopify.api.clients.Graphql({ session });
 
   const {
-    description, contactEmail, billingAddress, primaryDomain, name, shopOwnerName
+    description, contactEmail, businessAddress, primaryDomain, name, shopOwnerName
   } = await getShopDetails(client);
 
   const connector = await loadConnectorWithResources();
@@ -29,21 +29,23 @@ const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
   });
 
   const address = connector.createAddress({
-    semanticId: `/api/dfc/Enterprises/${enterpriseName}/Addresses/1`,
-    street: billingAddress.address2,
-    postalCode: billingAddress.zip,
-    city: billingAddress.city,
-    country: billingAddress.country
+    semanticId: `/api/dfc/Enterprises/${enterpriseName}#mainAddress`,
+    street: businessAddress.address2,
+    postalCode: businessAddress.zip,
+    city: businessAddress.city,
+    country: businessAddress.country
   });
 
-  if (billingAddress.region) {
-    address.setRegion(billingAddress.region);
+  if (businessAddress.region) {
+    address.setRegion(businessAddress.region);
   }
 
   enterprise.addLocalization(address);
 
-  if (billingAddress.phone) {
-    enterprise.addPhoneNumber(PhoneNumber(billingAddress.phone));
+  const phoneNumber = businessAddress.phone && new PhoneNumber({ connector, semanticId: `/api/dfc/Enterprises/${enterpriseName}#phoneNumber`, phoneNumber: businessAddress.phone });
+
+  if (phoneNumber) {
+    enterprise.addPhoneNumber(phoneNumber);
   }
 
   enterprise.addEmailAddress(contactEmail);
@@ -59,7 +61,7 @@ const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
     }))
     .forEach((product) => enterprise.supplyProduct(product));
 
-  return [enterprise, address, mainContact];
+  return [enterprise, address, mainContact, ...(phoneNumber ? [phoneNumber] : [])];
 };
 
 export const getEnterprise = async (req, res) => {

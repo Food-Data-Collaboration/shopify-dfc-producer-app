@@ -6,19 +6,27 @@ export default async function getShopDetails(client) {
         name
         description
         shopOwnerName
-        billingAddress {
-          address1
-          address2
-          city
-          country
-          province
-          zip
-          phone
-        }
         primaryDomain {
           url
         }
-      } 
+      }
+      locations(first: 1) {
+        edges {
+          node {
+            id
+            name
+            address {
+              address1
+              address2
+              city
+              country
+              province
+              zip
+              phone
+            }
+          }
+        }
+      }
     }`);
 
   if (response.errors) {
@@ -30,5 +38,10 @@ export default async function getShopDetails(client) {
     return null;
   }
 
-  return response.data.shop;
+  console.log(response.data.locations.edges[0].node);
+
+  const address = response.data.locations.edges?.length > 0 &&
+    response.data.locations.edges[0].node.address;
+
+  return { ...response.data.shop, businessAddress: address };
 }
