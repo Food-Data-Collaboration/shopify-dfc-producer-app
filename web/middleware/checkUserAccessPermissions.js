@@ -60,10 +60,6 @@ async function authorise(accessToken, req, res, next) {
     email: tokenSet.email
   };
 
-  if (!(req.baseUrl + req.path).includes('/Orders')) {
-    return next();
-  }
-
   try {
     const user = await query('SELECT * FROM users WHERE user_id = $1', [
       userId
@@ -78,6 +74,9 @@ async function authorise(accessToken, req, res, next) {
         shopName
       );
 
+      if (!(req.baseUrl + req.path).includes('/Orders')) {
+        return next();
+      }
       return res.status(403).json({
         message: 'User access denied',
         error: 'User not found in database'
