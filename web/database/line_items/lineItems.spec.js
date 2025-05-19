@@ -1,4 +1,4 @@
-import { createOrUpdateLineItems, getLineItems, getAllLineItems } from './lineItems'
+import { createOrUpdateLineItems, getLineItems, getAllLineItems } from './lineItems';
 import { pool } from '../connect';
 
 describe('lineItems', () => {

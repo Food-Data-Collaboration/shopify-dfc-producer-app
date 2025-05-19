@@ -5,7 +5,7 @@ import shopify from '../../../shopify.js';
 import getSession from '../../../utils/getShopifySession.js';
 import {
   createDfcOrderFromShopify,
-  extractOrderAndLines,
+  extractOrderAndLines
 } from '../dfc/dfc-order.js';
 import { persistLineIdMappings } from './lineItemMappings.js';
 import * as ids from './shopify/ids.js';
@@ -16,7 +16,11 @@ const updateOrder = async (req, res) => {
     console.log('updating order with body:>> ', req.body);
     console.log('updating order with params :>> ', req.params);
 
-    const orderMetadata = await database.getOrder(req.params.id, req.user.id);
+    const orderMetadata = await database.getOrder(
+      req.params.id,
+      req.user.id,
+      req.params.EnterpriseName
+    );
 
     if (!orderMetadata) {
       return res
@@ -45,7 +49,7 @@ const updateOrder = async (req, res) => {
       return res.status(404).send('Unable to find order');
     }
 
-    const salesSession = await loadSalesSession(req.params.id);
+    const salesSession = await loadSalesSession(req.params.id, req.params.EnterpriseName);
 
     if (!salesSession) {
       return res.status(500).send('Unable to find sales session');
@@ -54,10 +58,14 @@ const updateOrder = async (req, res) => {
     const shopifyDraftOrder = await updateShopifyDraftOrder(
       client,
       order,
-      new Date(salesSession.reservationDate)
+      new Date(salesSession.reservationDate),
+      req.params.EnterpriseName
     );
 
-    const lineItemIdMappings = await persistLineIdMappings(shopifyDraftOrder);
+    const lineItemIdMappings = await persistLineIdMappings(
+      shopifyDraftOrder,
+      req.params.EnterpriseName
+    );
     const dfcOrder = await createDfcOrderFromShopify(
       shopifyDraftOrder,
       lineItemIdMappings,
@@ -71,7 +79,7 @@ const updateOrder = async (req, res) => {
   }
 };
 
-async function updateShopifyDraftOrder(client, order, reservationDate) {
+async function updateShopifyDraftOrder(client, order, reservationDate, enterprise) {
   const dfcLines = await order.getLines();
 
   const shopifyLines = (
@@ -94,12 +102,12 @@ async function updateShopifyDraftOrder(client, order, reservationDate) {
     );
     await database.completeDraftOrder(
       ids.extract(completedOrder.id),
-      ids.extract(completedOrder.order.id)
+      ids.extract(completedOrder.order.id),
+      enterprise
     );
     return completedOrder;
-  } else {
-    return shopifyDraftOrder;
   }
+  return shopifyDraftOrder;
 }
 
 export default updateOrder;

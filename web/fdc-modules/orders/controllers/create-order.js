@@ -41,12 +41,20 @@ const createOrder = async (req, res) => {
       shopifyLines
     );
 
-    await createDraftOrder(ids.extract(shopifyDraftOrder.id), req.user.id);
+    await createDraftOrder(
+      ids.extract(shopifyDraftOrder.id),
+      req.user.id,
+      req.params.EnterpriseName
+    );
     await createSalesSession(
       ids.extract(shopifyDraftOrder.id),
-      saleSession.getEndDate()
+      saleSession.getEndDate(),
+      req.params.EnterpriseName
     );
-    const lineItemIdMappings = await persistLineIdMappings(shopifyDraftOrder);
+    const lineItemIdMappings = await persistLineIdMappings(
+      shopifyDraftOrder,
+      req.params.EnterpriseName
+    );
     const dfcOrder = await createDfcOrderFromShopify(
       shopifyDraftOrder,
       lineItemIdMappings,
