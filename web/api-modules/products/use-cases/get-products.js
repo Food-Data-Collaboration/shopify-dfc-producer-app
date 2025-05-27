@@ -84,7 +84,7 @@ async function findProducts(client, after) {
   } return thisPage;
 }
 
-const getProducts = async ({ session }) => {
+const getProducts = async ({ session, shopName }) => {
   const client = new shopify.api.clients.Graphql({ session });
 
   const products = await findProducts(client);
@@ -92,7 +92,7 @@ const getProducts = async ({ session }) => {
     return [];
   }
 
-  return await combineFdcProductsWithTheirFdcConfiguration(products);
+  return await combineFdcProductsWithTheirFdcConfiguration(products, shopName);
 };
 
 export default getProducts;

@@ -1,0 +1,27 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "2b97642439f3a3a7d535d1f7ed1ade5e"
+name = "alex-fdc-producer-app"
+handle = "alex-fdc-producer-app"
+application_url = "https://perceived-catalogue-grades-dropped.trycloudflare.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2024-01"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_inventory,read_locations,read_products,unauthenticated_read_content,write_customers,write_draft_orders,write_products"
+
+[auth]
+redirect_urls = [
+  "https://perceived-catalogue-grades-dropped.trycloudflare.com/auth/callback",
+  "https://perceived-catalogue-grades-dropped.trycloudflare.com/auth/shopify/callback",
+  "https://perceived-catalogue-grades-dropped.trycloudflare.com/api/auth/callback"
+]
+
+[pos]
+embedded = false

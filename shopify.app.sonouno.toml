@@ -1,0 +1,7 @@
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_customers,write_draft_orders,write_products,read_products,read_inventory,read_locations,write_draft_orders,unauthenticated_read_content"
+
+[build]
+automatically_update_urls_on_dev = true

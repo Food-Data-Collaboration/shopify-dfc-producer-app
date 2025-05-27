@@ -6,13 +6,13 @@ const clientSecret = process.env.OIDC_CLIENT_SECRET;
 const issuerURL = process.env.OIDC_ISSUER;
 
 custom.setHttpOptionsDefaults({
-  timeout: 5000,
+  timeout: 5000
 });
 
 const checkUserAccessPermissions = async (req, res, next) => {
-    const accessToken = bearerToken(req);
+  const accessToken = bearerToken(req);
 
-    await authorise(accessToken, req, res, next);
+  await authorise(accessToken, req, res, next);
 };
 
 async function getUserTokenSet(accessToken) {
@@ -24,15 +24,13 @@ async function getUserTokenSet(accessToken) {
       client_secret: clientSecret
     });
 
-    return {tokenSet: await client.introspect(accessToken)};
-
+    return { tokenSet: await client.introspect(accessToken) };
   } catch (error) {
-    return {error};
+    return { error };
   }
 }
 
 async function authorise(accessToken, req, res, next) {
-
   if (!accessToken) {
     return res.status(403).json({
       message: 'User access denied - token missing',
@@ -40,9 +38,9 @@ async function authorise(accessToken, req, res, next) {
     });
   }
 
-  const {error, tokenSet} = await getUserTokenSet(accessToken);
+  const { error, tokenSet } = await getUserTokenSet(accessToken);
 
-  if (error){
+  if (error) {
     return next(error);
   }
 
@@ -54,20 +52,31 @@ async function authorise(accessToken, req, res, next) {
   }
 
   const userId = tokenSet.username;
-  const name = tokenSet.name;
+  const { name } = tokenSet;
+  const { shopName } = req;
+
+  req.user = {
+    id: userId,
+    email: tokenSet.email
+  };
 
   try {
     const user = await query('SELECT * FROM users WHERE user_id = $1', [
       userId
-    ]);
+    ], undefined, shopName);
 
     if (!user || user.rows.length === 0) {
       // insert this user into the database with status false
       await query(
         'INSERT INTO users (user_id, status, name) VALUES ($1,$2,$3)',
-        [userId, false, name]
+        [userId, false, name],
+        undefined,
+        shopName
       );
 
+      if (!(req.baseUrl + req.path).includes('/Orders')) {
+        return next();
+      }
       return res.status(403).json({
         message: 'User access denied',
         error: 'User not found in database'
@@ -77,10 +86,6 @@ async function authorise(accessToken, req, res, next) {
     const { status } = user.rows[0];
 
     if (status) {
-      req.user = {
-        id: userId,
-        email: tokenSet.email
-      };
       return next();
     }
 

@@ -3,8 +3,9 @@ import { toggleVariantMappingStatus, setAllVariantMappingStatuses } from '../../
 export const toggleFdcVariantStatus = async (req, res) => {
   try {
     const { variantId } = req.params;
+    const { shopName } = req;
 
-    const updatedVariantMapping = await toggleVariantMappingStatus(variantId);
+    const updatedVariantMapping = await toggleVariantMappingStatus(variantId, shopName);
 
     return res.status(200).json(updatedVariantMapping);
   } catch (error) {
@@ -19,8 +20,9 @@ export const changeFdcStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { enabled, variants } = req.body;
+    const { shopName } = req;
 
-    const updatedVariantMapping = await setAllVariantMappingStatuses(id, variants, enabled);
+    const updatedVariantMapping = await setAllVariantMappingStatuses(id, variants, enabled, shopName);
 
     return res.status(200).json(updatedVariantMapping);
   } catch (error) {

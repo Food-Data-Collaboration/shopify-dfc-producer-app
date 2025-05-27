@@ -95,15 +95,15 @@ export async function findFDCProducts(client, fdcVariantsFromDB) {
   return findProductsByIds(client, fdcVariantsFromDB);
 }
 
-export async function getFdcVariantsFromDB() {
-  const variants = await getVariants();
+export async function getFdcVariantsFromDB(shopName) {
+  const variants = await getVariants(shopName);
   const mappedVariantsByProductId = indexedByProductId(variants);
 
   return mappedVariantsByProductId;
 }
 
-export async function getFdcVariantsByProductIdFromDB(productId) {
-  const variants = await getVariantsByProductId(productId);
+export async function getFdcVariantsByProductIdFromDB(productId, shopName) {
+  const variants = await getVariantsByProductId(productId, shopName);
   const mappedVariantsByProductId = indexedByProductId(variants);
 
   return mappedVariantsByProductId;

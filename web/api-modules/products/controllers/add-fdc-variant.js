@@ -1,11 +1,16 @@
-import { addVariant } from '../../../database/variants/variants.js'
+import { addVariant } from '../../../database/variants/variants.js';
 
 const addFdcVariant = async (req, res) => {
   try {
-    const {id: productId} = req.params;
-    const { retailVariantId, wholesaleVariantId, noOfItemsPerPackage, enabled } = req.body;
+    const { id: productId } = req.params;
+    const {
+      retailVariantId, wholesaleVariantId, noOfItemsPerPackage, enabled
+    } = req.body;
+    const { shopName } = req;
 
-    const updatedVariantMapping = await addVariant({productId, retailVariantId, wholesaleVariantId, noOfItemsPerPackage, enabled});
+    const updatedVariantMapping = await addVariant({
+      productId, retailVariantId, wholesaleVariantId, noOfItemsPerPackage, enabled, shopName
+    });
 
     return res.status(200).json(updatedVariantMapping);
   } catch (error) {

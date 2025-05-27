@@ -4,7 +4,6 @@ import '@shopify/shopify-api/adapters/node';
 import { LATEST_API_VERSION } from '@shopify/shopify-api';
 import { shopifyApp } from '@shopify/shopify-app-express';
 import { PostgreSQLSessionStorage } from '@shopify/shopify-app-session-storage-postgresql';
-import { restResources } from '@shopify/shopify-api/rest/admin/2023-01';
 import config from './config.js';
 
 const scopes = [
@@ -26,14 +25,14 @@ const scopes = [
   'read_third_party_fulfillment_orders',
   'write_third_party_fulfillment_orders',
   'read_payment_terms',
-  'write_payment_terms'
+  'write_payment_terms',
+  'unauthenticated_read_product_listings'
 ];
 
 const apiObject =
   process.env.NODE_ENV === 'development'
     ? {
         apiVersion: LATEST_API_VERSION,
-        restResources,
         billing: undefined,
         apiSecretKey: config.SHOPIFY_API_SECRET_KEY,
         HOST: config.HOST,
@@ -41,7 +40,6 @@ const apiObject =
       }
     : {
         apiVersion: LATEST_API_VERSION,
-        restResources,
         billing: undefined,
         scopes
       };
@@ -55,7 +53,7 @@ const shopify = shopifyApp({
   webhooks: {
     path: '/api/webhooks'
   },
-  sessionStorage: new PostgreSQLSessionStorage(config.DATABASE_URL)
+  sessionStorage: new PostgreSQLSessionStorage(`${config.DATABASE_HOST_URL}/${config.SHOP_REGISTRY_DATABASE_NAME}`)
 });
 
 export default shopify;

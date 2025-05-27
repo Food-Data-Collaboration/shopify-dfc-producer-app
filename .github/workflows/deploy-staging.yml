@@ -13,6 +13,8 @@ jobs:
       id-token: write
     uses: ./.github/workflows/build-and-deploy.yml
     with:
-      jelastic_env: env-0105831
-    secrets: inherit
+      jelastic_env: ofn-producer-staging
+    secrets:
+      jelastic_access_token: ${{ secrets.JELASTIC_ACCESS_TOKEN }}
+      shopify_api_key: ${{ secrets.SHOPIFY_API_KEY }}      
       
