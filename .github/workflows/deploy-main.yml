@@ -2,7 +2,7 @@ name: Create and publish a Docker image
 
 on:
   push:
-    branches: ['staging']
+    branches: ["main"]
 
 jobs:
   build-and-push-image:
@@ -13,8 +13,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/build-and-deploy.yml
     with:
-      jelastic_env: ofn-producer-staging
+      jelastic_env: ofn-producer
     secrets:
       jelastic_access_token: ${{ secrets.JELASTIC_ACCESS_TOKEN }}
-      shopify_api_key: ${{ secrets.SHOPIFY_API_KEY }}      
-      
+      shopify_api_key: ${{ secrets.SHOPIFY_API_KEY_PRODUCTION }}
