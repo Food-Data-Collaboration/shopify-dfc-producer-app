@@ -22,7 +22,8 @@ export const changeFdcStatus = async (req, res) => {
     const { enabled, variants } = req.body;
     const { shopName } = req;
 
-    const updatedVariantMapping = await setAllVariantMappingStatuses(id, variants, enabled, shopName);
+    const updatedVariantMapping = await setAllVariantMappingStatuses(variants.map((variantId) =>
+      ({ productId: id, variantId })), enabled, shopName);
 
     return res.status(200).json(updatedVariantMapping);
   } catch (error) {
