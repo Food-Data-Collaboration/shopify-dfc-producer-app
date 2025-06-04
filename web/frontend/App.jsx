@@ -12,66 +12,70 @@ import {
 import { useAppQuery } from './hooks';
 import PostInstallationSetup from './pages/PostInstallationSetup';
 
-export default function App() {
-  // Any .tsx or .jsx files in /pages will become a route
-  // See documentation for <Routes /> for more info
-  const pages = import.meta.globEager('./pages/**/!(*.test.[jt]sx)*.([jt]sx)');
+function useShopDetails() {
   const [isSetupCompleted, setIsSetupCompleted] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [ordersFeatureEnabled, setOrdersFeatureEnabled] = useState(false);
 
-  // A wrapper component to check setup status
-  function SetupCheck() {
-    const { data: shopData, isLoading: shopLoading } = useAppQuery({
-      url: '/api/shop/details'
-    });
+  const { data: shopData, isLoading: shopLoading } = useAppQuery({
+    url: '/api/shop/details'
+  });
 
-    useEffect(() => {
-      if (!shopLoading) {
-        setIsSetupCompleted(shopData?.shop?.setupCompleted === true);
-        setOrdersFeatureEnabled(shopData?.shop?.ordersFeatureEnabled === true);
-        setIsLoading(false);
-      }
-    }, [shopData, shopLoading]);
-
-    if (isLoading || shopLoading) {
-      return (
-        <Card sectioned>
-          <Loading />
-          <SkeletonBodyText />
-        </Card>
-      );
+  useEffect(() => {
+    if (!shopLoading) {
+      setIsSetupCompleted(shopData?.shop?.setupCompleted === true);
+      setOrdersFeatureEnabled(shopData?.shop?.ordersFeatureEnabled === true);
+      setIsLoading(false);
     }
+  }, [shopData, shopLoading]);
 
-    if (isSetupCompleted === false) {
-      return <PostInstallationSetup />;
-    }
+  return {
+    isSetupCompleted,
+    ordersFeatureEnabled,
+    isLoading: isLoading || shopLoading
+  };
+}
 
+const getNavigationLinks = (ordersFeatureEnabled) =>
+  (ordersFeatureEnabled
+    ? [{ label: 'Hub Users', destination: '/hubUsers' }]
+    : []);
+
+function SetupCheck({ pages }) {
+  const { isSetupCompleted, ordersFeatureEnabled, isLoading } = useShopDetails();
+
+  if (isLoading) {
     return (
-      <>
-        <NavigationMenu
-          navigationLinks={
-            ordersFeatureEnabled
-              ? [
-                {
-                  label: 'Hub Users',
-                  destination: '/hubUsers'
-                }
-              ]
-              : []
-          }
-        />
-        <Routes pages={pages} />
-      </>
+      <Card sectioned>
+        <Loading />
+        <SkeletonBodyText />
+      </Card>
     );
   }
+
+  if (isSetupCompleted === false) {
+    return <PostInstallationSetup />;
+  }
+
+  return (
+    <>
+      <NavigationMenu navigationLinks={getNavigationLinks(ordersFeatureEnabled)} />
+      <Routes pages={pages} />
+    </>
+  );
+}
+
+export default function App() {
+  // Any .tsx or .jsx files in /pages will become a route
+  // See documentation for <Routes /> for more info
+  const pages = import.meta.globEager('./pages/**/!(*.test.[jt]sx)*.([jt]sx)');
 
   return (
     <PolarisProvider>
       <BrowserRouter>
         <AppBridgeProvider>
           <QueryProvider>
-            <SetupCheck />
+            <SetupCheck pages={pages} />
           </QueryProvider>
         </AppBridgeProvider>
       </BrowserRouter>

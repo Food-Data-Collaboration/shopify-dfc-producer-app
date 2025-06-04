@@ -103,6 +103,43 @@ async function combineFdcProductsWithTheirFdcConfiguration(products, shopName) {
   );
 }
 
+async function bulkSetVariantMappingStatuses(productVariantsMap, status, shopName) {
+  if (!productVariantsMap || Object.keys(productVariantsMap).length === 0) {
+    return [];
+  }
+
+  // Flatten the product-variants map into individual records
+  const variantMappings = [];
+  Object.entries(productVariantsMap).forEach(([productId, variantIds]) => {
+    if (Array.isArray(variantIds) && variantIds.length > 0) {
+      variantIds.forEach((variantId) => {
+        variantMappings.push({
+          productId: parseInt(productId, 10),
+          variantId: parseInt(variantId, 10),
+          status
+        });
+      });
+    }
+  });
+
+  if (variantMappings.length === 0) {
+    return [];
+  }
+
+  return (await query(
+    `INSERT into fdc_variants (product_id, retail_variant_id, enabled)
+     (SELECT * FROM json_to_recordset($1)
+       AS x("productId" bigint, "variantId" bigint, "status" boolean))
+       on CONFLICT(product_id, retail_variant_id)
+          DO UPDATE SET
+               enabled = EXCLUDED.enabled 
+            RETURNING *;`,
+    [JSON.stringify(variantMappings)],
+    undefined,
+    shopName
+  ))?.rows;
+}
+
 export {
   getVariants,
   getVariantsByProductId,
@@ -114,5 +151,6 @@ export {
   setAllVariantMappingStatuses,
   addVariant,
   updateVariant,
-  deleteVariant
+  deleteVariant,
+  bulkSetVariantMappingStatuses
 };
