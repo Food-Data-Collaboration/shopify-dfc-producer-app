@@ -49,7 +49,7 @@ async function toggleVariantMappingStatus(variantId, shopName) {
   return (await query('UPDATE fdc_variants SET enabled = NOT enabled WHERE id = $1 RETURNING *', [variantId], undefined, shopName))?.rows[0];
 }
 
-async function setAllVariantMappingStatuses(productId, variants, status, shopName) {
+async function setAllVariantMappingStatuses(variants, status, shopName) {
   return (await query(
     `INSERT into fdc_variants (product_id, retail_variant_id, enabled)
      (SELECT * FROM json_to_recordset($1)
@@ -58,7 +58,9 @@ async function setAllVariantMappingStatuses(productId, variants, status, shopNam
           DO UPDATE SET
                enabled = EXCLUDED.enabled 
             RETURNING *;`,
-    [JSON.stringify(variants.map((variantId) => ({ productId, variantId, status })))],
+    [JSON.stringify(
+      variants.map(({ productId, variantId }) => ({ productId, variantId, status }))
+    )],
     undefined,
     shopName
   ))?.rows;
