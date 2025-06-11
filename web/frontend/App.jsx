@@ -16,6 +16,7 @@ function useShopDetails() {
   const [isSetupCompleted, setIsSetupCompleted] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [ordersFeatureEnabled, setOrdersFeatureEnabled] = useState(false);
+  const [shopName, setShopName] = useState(null);
 
   const { data: shopData, isLoading: shopLoading } = useAppQuery({
     url: '/api/shop/details'
@@ -26,13 +27,15 @@ function useShopDetails() {
       setIsSetupCompleted(shopData?.shop?.setupCompleted === true);
       setOrdersFeatureEnabled(shopData?.shop?.ordersFeatureEnabled === true);
       setIsLoading(false);
+      setShopName(shopData?.shop.shopName);
     }
   }, [shopData, shopLoading]);
 
   return {
     isSetupCompleted,
     ordersFeatureEnabled,
-    isLoading: isLoading || shopLoading
+    isLoading: isLoading || shopLoading,
+    shopName
   };
 }
 
@@ -42,7 +45,9 @@ const getNavigationLinks = (ordersFeatureEnabled) =>
     : [{ label: 'Platform authorisation', destination: '/platformAuthorisation' }]);
 
 function SetupCheck({ pages }) {
-  const { isSetupCompleted, ordersFeatureEnabled, isLoading } = useShopDetails();
+  const {
+    isSetupCompleted, ordersFeatureEnabled, isLoading, shopName
+  } = useShopDetails();
 
   if (isLoading) {
     return (
@@ -60,7 +65,7 @@ function SetupCheck({ pages }) {
   return (
     <>
       <NavigationMenu navigationLinks={getNavigationLinks(ordersFeatureEnabled)} />
-      <Routes pages={pages} />
+      <Routes pages={pages} shopName={shopName} />
     </>
   );
 }

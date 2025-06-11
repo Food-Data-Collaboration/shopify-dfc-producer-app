@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { extractShopName } from '../utils/shopUtils';
 
 function createScript(url, onload) {
   const script = document.createElement('script');
@@ -9,11 +8,8 @@ function createScript(url, onload) {
   document.body.appendChild(script);
 }
 
-export default function PlatformAuthorisation() {
+export default function PlatformAuthorisation({ shopName }) {
   const [ready, setReady] = useState(false);
-
-  const shopName = extractShopName();
-
   useEffect(() => {
     createScript(
       'https://cdn.jsdelivr.net/npm/@startinblox/core@latest/dist/index.js',
