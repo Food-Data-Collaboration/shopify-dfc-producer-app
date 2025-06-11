@@ -22,7 +22,11 @@ const populateShop = async (req, res, next) => {
 
   req.shopName = shopName;
   req.shopDefaultProductType = shopDetails.defaultProductType;
-  req.shop = { shopName, storeFrontAccessToken: shopDetails.storeFrontAccessToken };
+  req.shop = {
+    shopName,
+    storeFrontAccessToken: shopDetails.storeFrontAccessToken,
+    id: shopDetails.id
+  };
 
   return next();
 };

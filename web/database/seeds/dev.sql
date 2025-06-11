@@ -1,0 +1,1 @@
+insert into portal_listing (id, description, title, terms_and_conditions) values ('https://waterlooregionfood.ca/portal/profile', 'A super duper portal for the waterloo region', 'Waterloo Region Food Portal', 'https://waterlooregionfood.ca/terms-and-conditions')

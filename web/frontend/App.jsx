@@ -39,7 +39,7 @@ function useShopDetails() {
 const getNavigationLinks = (ordersFeatureEnabled) =>
   (ordersFeatureEnabled
     ? [{ label: 'Hub Users', destination: '/hubUsers' }]
-    : []);
+    : [{ label: 'Platform authorisation', destination: '/platformAuthorisation' }]);
 
 function SetupCheck({ pages }) {
   const { isSetupCompleted, ordersFeatureEnabled, isLoading } = useShopDetails();

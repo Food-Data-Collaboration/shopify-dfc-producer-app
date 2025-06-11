@@ -18,6 +18,8 @@ import UsersModules from './api-modules/users/index.js';
 import ShopModules from './api-modules/shop/index.js';
 import checkOnlineSession from './middleware/checkOnlineSession.js';
 
+import scopes from './fdc-modules/scopes.js';
+import portals from './fdc-modules/portals/index.js';
 import fdcOrderRoutes from './fdc-modules/orders/index.js';
 import fdcProductRoutes from './fdc-modules/products/index.js';
 import { getEnterprise, getEnterprises } from './fdc-modules/enterprises/controllers/index.js';
@@ -26,7 +28,7 @@ import populateShop from './middleware/populateShopId.js';
 
 dotenv.config();
 
-const errorMiddleware = (err, _req, res) => {
+const errorMiddleware = (err, _req, res, next) => {
   if (err.name === 'ValidationError') {
     return res.status(400).json({
       success: false,
@@ -66,15 +68,14 @@ app.get(
   shopify.redirectToShopifyOrAppRoot()
 );
 
-app.use('/fdc', cors(), express.json(), legacyfdcRouter, errorMiddleware);
+app.use('/fdc', cors(), express.json(), legacyfdcRouter);
 
 app.get(
   '/api/dfc/Enterprises',
   cors(),
   express.text({ type: '*/json' }),
   checkUserAccessPermissions,
-  getEnterprises,
-  errorMiddleware
+  getEnterprises
 );
 
 app.get(
@@ -83,8 +84,7 @@ app.get(
   express.text({ type: '*/json' }),
   populateShop,
   checkUserAccessPermissions,
-  getEnterprise,
-  errorMiddleware
+  getEnterprise
 );
 
 app.use(
@@ -94,8 +94,7 @@ app.use(
   populateShop,
   checkUserAccessPermissions,
   checkOrdersFeature,
-  fdcOrderRoutes,
-  errorMiddleware
+  fdcOrderRoutes
 );
 
 app.use(
@@ -104,8 +103,22 @@ app.use(
   express.json(),
   populateShop,
   checkUserAccessPermissions,
-  fdcProductRoutes,
-  errorMiddleware
+  fdcProductRoutes
+);
+
+app.use(
+  '/api/dfc/Enterprises/:EnterpriseName/Portals',
+  cors(),
+  // shopify.validateAuthenticatedSession(),
+  express.json({ type: ['application/json', 'application/ld+json'] }),
+  populateShop,
+  portals
+);
+
+app.use(
+  '/api/scopes',
+  express.json(),
+  scopes
 );
 
 app.use(
@@ -114,8 +127,7 @@ app.use(
   express.json(),
   checkOnlineSession,
   populateShop,
-  ProductsModules.Controllers,
-  errorMiddleware
+  ProductsModules.Controllers
 );
 
 app.use(
@@ -125,8 +137,7 @@ app.use(
   checkOnlineSession,
   populateShop,
   checkOrdersFeature,
-  UsersModules.Controllers,
-  errorMiddleware
+  UsersModules.Controllers
 );
 
 app.use(
@@ -135,8 +146,7 @@ app.use(
   express.json(),
   checkOnlineSession,
   populateShop,
-  ShopModules.Controllers,
-  errorMiddleware
+  ShopModules.Controllers
 );
 
 app.use(serveStatic(STATIC_PATH, { index: false }));
