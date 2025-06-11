@@ -28,7 +28,7 @@ import populateShop from './middleware/populateShopId.js';
 
 dotenv.config();
 
-const errorMiddleware = (err, _req, res, next) => {
+const errorMiddleware = (err, _req, res, _next) => {
   if (err.name === 'ValidationError') {
     return res.status(400).json({
       success: false,

@@ -16,7 +16,7 @@ export const updatePermissions = async (producer, portal, scopes) => {
     [portal]
   );
 
-  (await query(
+  await query(
     `INSERT into portal_permissions (producer, portal, scope)
      (SELECT * FROM json_to_recordset($1)
        AS x("producer" integer, "portal" text, "scope" text))
@@ -24,7 +24,7 @@ export const updatePermissions = async (producer, portal, scopes) => {
     [JSON.stringify(
       scopes.map((scope) => ({ producer, portal, scope }))
     )]
-  ));
+  );
 
   return null;
 };
