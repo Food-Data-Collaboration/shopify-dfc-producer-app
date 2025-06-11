@@ -31,12 +31,10 @@ function checkHeadersForReauthorization(headers, app) {
  * @returns {Function} fetch function
  */
 export function useAuthenticatedFetch() {
-  console.log("requesting app bridge");
   const app = useAppBridge();
   const fetchFunction = authenticatedFetch(app);
 
   return async (uri, options) => {
-    console.log('allegedly makng request');
     const response = await fetchFunction(uri, options);
     checkHeadersForReauthorization(response.headers, app);
     return response;

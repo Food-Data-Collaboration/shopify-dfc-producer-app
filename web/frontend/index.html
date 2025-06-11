@@ -5,7 +5,6 @@
 
     <!-- Ensures that the UI is properly scaled in the Shopify Mobile app -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
-
     <script type="module">
       if (!import.meta.env || !import.meta.env.PROD) {
         // Because the base HTML is rendered in the server side, we need to manually embed the code to enable HMR in our
@@ -16,6 +15,24 @@
         document.getElementsByTagName('head')[0].append(script);
       }
     </script>
+    <script type="module">
+      window.orbit = {
+      client: {
+          name: "Orbit",
+          logo: "https://cdn.startinblox.com/logos/ACME.svg",
+      },
+      components: [],
+      getRoute: (route) => route,
+      getDefaultRoute: () => "",
+      getComponent: () => undefined,
+      getComponentFromRoute: () => undefined,
+      Swal: () => {},
+      defaultRoute: "",
+      federations: {},
+      componentSet: new Set(["routing", "menu", "menu-top", "autoLogin", "solid-permissioning"]),
+      };
+  </script>
+  
   </head>
   <body>
     <div id="app"><!--index.jsx injects App.jsx here--></div>

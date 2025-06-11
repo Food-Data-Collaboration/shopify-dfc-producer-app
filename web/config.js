@@ -14,7 +14,8 @@ const schema = yup.object().shape({
   HOST: yup.string(),
   NODE_ENV: yup.string(),
   DATABASE_HOST_URL: yup.string(),
-  SHOP_REGISTRY_DATABASE_NAME: yup.string()
+  SHOP_REGISTRY_DATABASE_NAME: yup.string(),
+  OIDC_ISSUER: yup.string()
 });
 
 const createConfig = () => {
@@ -35,7 +36,8 @@ const createConfig = () => {
     OIDC_CLIENT_SECRET: envVars.OIDC_CLIENT_SECRET,
     NODE_ENV: envVars.NODE_ENV,
     DATABASE_HOST_URL: envVars.DATABASE_HOST_URL,
-    SHOP_REGISTRY_DATABASE_NAME: envVars.SHOP_REGISTRY_DATABASE_NAME
+    SHOP_REGISTRY_DATABASE_NAME: envVars.SHOP_REGISTRY_DATABASE_NAME,
+    OIDC_ISSUER: envVars.OIDC_ISSUER
   };
 };
 

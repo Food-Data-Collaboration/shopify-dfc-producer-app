@@ -11,10 +11,6 @@ const setupShopRegistryTables = async () => {
 
   console.log('Setting up shop registry tables at:', connectionString);
 
-  if (dbHostUrl.includes('amazonaws')) {
-    throw new Error("You're rebuilding an environment, I'm not going to do that");
-  }
-
   // Connect directly to the shop_registry database - assumes it exists
   const registryPool = new Pool({
     connectionString,
@@ -36,7 +32,11 @@ const setupShopRegistryTables = async () => {
     try {
       await readSqlFile(`${process.cwd()}/web/database/auto-timestamp.sql`);
       await readSqlFile(`${process.cwd()}/web/database/shop_registry/schema.sql`);
+      await readSqlFile(`${process.cwd()}/web/database/portals/schema.sql`);
       await readSqlFile(`${process.cwd()}/web/database/build.sql`);
+      if (process.env.NODE_ENV !== 'production') {
+        await readSqlFile(`${process.cwd()}/web/database/seeds/dev.sql`);
+      }
       console.log('Successfully set up shop_registry tables');
     } catch (err) {
       console.error('Error creating shop_registry tables:', err);
