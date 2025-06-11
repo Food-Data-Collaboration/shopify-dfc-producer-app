@@ -25,6 +25,7 @@ const populateShop = async (req, res, next) => {
   req.shop = {
     shopName,
     storeFrontAccessToken: shopDetails.storeFrontAccessToken,
+    ordersFeatureEnabled: shopDetails.ordersFeatureEnabled,
     id: shopDetails.id
   };
 
