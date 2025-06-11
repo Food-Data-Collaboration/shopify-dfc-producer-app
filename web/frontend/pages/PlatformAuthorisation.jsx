@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { extractShopName } from '../utils/shopUtils';
 
 function createScript(url, onload) {
   const script = document.createElement('script');
@@ -10,6 +11,8 @@ function createScript(url, onload) {
 
 export default function PlatformAuthorisation() {
   const [ready, setReady] = useState(false);
+
+  const shopName = extractShopName();
 
   useEffect(() => {
     createScript(
@@ -29,7 +32,7 @@ export default function PlatformAuthorisation() {
     <div>
       <h1>Test!</h1>
       <solid-permissioning
-        data-src="/api/dfc/Enterprises/alex-fdc-producer/Portals"
+        data-src={`/api/dfc/Enterprises/${shopName}/Portals`}
         scopes-uri="/api/scopes"
         noRouter
       />
