@@ -8,7 +8,6 @@
 1. You must [create a Shopify partner account](https://partners.shopify.com/signup) if you don’t have one.
 1. You must [create a development store](https://help.shopify.com/en/partners/dashboard/development-stores#create-a-development-store) if you don’t have one.
 
-
 ## Running a local Version of the App
 
 1. **Read the Main Product Readme**: Familiarize yourself with the project by reading the [main Product Readme](https://github.com/yalla-coop/food-data-collaboration-producer/blob/staging/README_MAIN_PRODUCT.md).
