@@ -1,6 +1,6 @@
 import { query } from '../../../database/connect.js';
-import ProductUseCases from '../../products/use-cases/index.js';
 import { setAllVariantMappingStatuses } from '../../../database/variants/variants.js';
+import ProductUseCases from '../../products/use-cases/index.js';
 
 const completeSetup = async (req, res, next) => {
   try {

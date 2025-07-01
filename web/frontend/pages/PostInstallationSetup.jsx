@@ -1,65 +1,57 @@
 import {
   Banner,
-  Button,
   Card,
-  Checkbox,
   Frame,
   Heading,
   Layout, Page,
+  Spinner,
   TextContainer
 } from '@shopify/polaris';
-import { useCallback, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppMutation } from '../hooks';
-import ProductTypeSelector from '../components/ProductTypeSelector';
 
 export default function PostInstallationSetup() {
-  const [variantMappingsEnabled, setVariantMappingsEnabled] = useState(false);
   const [setupSuccess, setSetupSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [defaultProductType, setDefaultProductType] = useState(null);
 
   const { mutateAsync, isLoading: isSaving } = useAppMutation({
     reactQueryOptions: {
       onSuccess: () => {
         setSetupSuccess(true);
+        // Refresh the page after 2 seconds
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       },
       onError: (error) => {
-        setErrorMessage(error.message || 'An error occurred while saving settings');
+        setErrorMessage(error.message || 'An error occurred while completing setup');
       }
     }
   });
 
-  const handleSave = useCallback(async () => {
-    setErrorMessage('');
-    setSetupSuccess(false);
+  useEffect(() => {
+    const completeSetup = async () => {
+      try {
+        await mutateAsync({
+          url: '/api/shop/complete-setup',
+          fetchInit: {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              variantMappingsEnabled: null,
+              defaultProductType: null
+            })
+          }
+        });
+      } catch (error) {
+        console.error('Error completing setup:', error);
+      }
+    };
 
-    try {
-      await mutateAsync({
-        url: '/api/shop/complete-setup',
-        fetchInit: {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            variantMappingsEnabled,
-            defaultProductType: defaultProductType.id || null
-          })
-        }
-      });
-
-      // Refresh the page after 2 seconds
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-    } catch (error) {
-      console.error('Error completing setup:', error);
-    }
-  }, [variantMappingsEnabled, defaultProductType, mutateAsync]);
-
-  const handleProductTypeChange = useCallback((type) => {
-    setDefaultProductType(type);
-  }, []);
+    completeSetup();
+  }, [mutateAsync]);
 
   return (
     <Page>
@@ -68,7 +60,6 @@ export default function PostInstallationSetup() {
           <Banner
             title="Setup completed successfully"
             status="success"
-            onDismiss={() => setSetupSuccess(false)}
           >
             <p>Your shop setup has been completed. You will be redirected shortly.</p>
           </Banner>
@@ -76,7 +67,7 @@ export default function PostInstallationSetup() {
 
         {errorMessage && (
           <Banner
-            title="Error saving settings"
+            title="Error completing setup"
             status="critical"
             onDismiss={() => setErrorMessage('')}
           >
@@ -88,40 +79,14 @@ export default function PostInstallationSetup() {
           <Layout.Section>
             <Card sectioned>
               <TextContainer>
-                <Heading>Complete Your Shop Setup</Heading>
-                <p>Please configure your shop preferences below to complete the setup process.</p>
+                <Heading>Completing Your Shop Setup</Heading>
+                {isSaving && (
+                  <div style={{ display: 'flex', alignItems: 'center', marginTop: '20px' }}>
+                    <Spinner size="small" />
+                    <span style={{ marginLeft: '10px' }}>Setting up your shop...</span>
+                  </div>
+                )}
               </TextContainer>
-            </Card>
-          </Layout.Section>
-
-          <Layout.Section>
-            <Card sectioned title="FDC Settings">
-              <TextContainer>
-                <Checkbox
-                  label="Enable Variant Mappings"
-                  helpText="When enabled, you can map product variants to FDC products"
-                  checked={variantMappingsEnabled}
-                  onChange={setVariantMappingsEnabled}
-                />
-              </TextContainer>
-
-              <div style={{ marginTop: '20px', marginBottom: '20px' }}>
-                <ProductTypeSelector
-                  onChange={handleProductTypeChange}
-                  value={defaultProductType}
-                />
-              </div>
-
-              <div style={{ marginTop: '20px' }}>
-                <Button
-                  primary
-                  onClick={handleSave}
-                  loading={isSaving}
-                  disabled={isSaving}
-                >
-                  Complete Setup
-                </Button>
-              </div>
             </Card>
           </Layout.Section>
         </Layout>
