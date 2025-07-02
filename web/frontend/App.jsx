@@ -1,13 +1,13 @@
-import { BrowserRouter } from 'react-router-dom';
-import { NavigationMenu, Loading } from '@shopify/app-bridge-react';
+import { Loading, NavigationMenu } from '@shopify/app-bridge-react';
 import { Card, SkeletonBodyText } from '@shopify/polaris';
 import { useEffect, useState } from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import Routes from './Routes';
 
 import {
   AppBridgeProvider,
-  QueryProvider,
-  PolarisProvider
+  PolarisProvider,
+  QueryProvider
 } from './components';
 import { useAppQuery } from './hooks';
 import PostInstallationSetup from './pages/PostInstallationSetup';
@@ -17,6 +17,7 @@ function useShopDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [ordersFeatureEnabled, setOrdersFeatureEnabled] = useState(false);
   const [shopName, setShopName] = useState(null);
+  const [hasPermissions, setHasPermissions] = useState(false);
 
   const { data: shopData, isLoading: shopLoading } = useAppQuery({
     url: '/api/shop/details'
@@ -26,6 +27,7 @@ function useShopDetails() {
     if (!shopLoading) {
       setIsSetupCompleted(shopData?.shop?.setupCompleted === true);
       setOrdersFeatureEnabled(shopData?.shop?.ordersFeatureEnabled === true);
+      setHasPermissions(shopData?.shop?.hasPermissions === true);
       setIsLoading(false);
       setShopName(shopData?.shop.shopName);
     }
@@ -34,19 +36,29 @@ function useShopDetails() {
   return {
     isSetupCompleted,
     ordersFeatureEnabled,
+    hasPermissions,
     isLoading: isLoading || shopLoading,
     shopName
   };
 }
 
-const getNavigationLinks = (ordersFeatureEnabled) =>
-  (ordersFeatureEnabled
-    ? [{ label: 'Hub Users', destination: '/hubUsers' }]
-    : [{ label: 'Platform authorisation', destination: '/platformAuthorisation' }]);
+const getNavigationLinks = (ordersFeatureEnabled, hasPermissions) => {
+  const links = [{ label: 'Platform authorisation', destination: '/platformAuthorisation' }];
+
+  if (ordersFeatureEnabled && hasPermissions) {
+    links.unshift({ label: 'Hub Users', destination: '/hubUsers' });
+  }
+
+  if (hasPermissions) {
+    links.unshift({ label: 'Products List', destination: '/products' });
+  }
+
+  return links;
+};
 
 function SetupCheck({ pages }) {
   const {
-    isSetupCompleted, ordersFeatureEnabled, isLoading, shopName
+    isSetupCompleted, ordersFeatureEnabled, hasPermissions, isLoading, shopName
   } = useShopDetails();
 
   if (isLoading) {
@@ -64,8 +76,8 @@ function SetupCheck({ pages }) {
 
   return (
     <>
-      <NavigationMenu navigationLinks={getNavigationLinks(ordersFeatureEnabled)} />
-      <Routes pages={pages} shopName={shopName} />
+      <NavigationMenu navigationLinks={getNavigationLinks(ordersFeatureEnabled, hasPermissions)} />
+      <Routes pages={pages} shopName={shopName} hasPermissions={hasPermissions} />
     </>
   );
 }

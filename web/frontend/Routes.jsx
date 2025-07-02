@@ -1,4 +1,4 @@
-import { Routes as ReactRouterRoutes, Route } from "react-router-dom";
+import { Routes as ReactRouterRoutes, Route } from 'react-router-dom';
 
 /**
  * File-based routing.
@@ -14,13 +14,19 @@ import { Routes as ReactRouterRoutes, Route } from "react-router-dom";
  *
  * @return {Routes} `<Routes/>` from React Router, with a `<Route/>` for each file in `pages`
  */
-export default function Routes({ pages, shopName }) {
+export default function Routes({ pages, shopName, hasPermissions }) {
   const routes = useRoutes(pages);
   const routeComponents = routes.map(({ path, component: Component }) => (
-    <Route key={path} path={path} element={<Component shopName={shopName} />} />
+    <Route
+      key={path}
+      path={path}
+      element={
+        <Component shopName={shopName} hasPermissions={hasPermissions} />
+      }
+    />
   ));
 
-  const NotFound = routes.find(({ path }) => path === "/notFound").component;
+  const NotFound = routes.find(({ path }) => path === '/notFound').component;
 
   return (
     <ReactRouterRoutes>
@@ -34,12 +40,12 @@ function useRoutes(pages) {
   const routes = Object.keys(pages)
     .map((key) => {
       let path = key
-        .replace("./pages", "")
-        .replace(/\.(t|j)sx?$/, "")
+        .replace('./pages', '')
+        .replace(/\.(t|j)sx?$/, '')
         /**
          * Replace /index with /
          */
-        .replace(/\/index$/i, "/")
+        .replace(/\/index$/i, '/')
         /**
          * Only lowercase the first letter. This allows the developer to use camelCase
          * dynamic paths while ensuring their standard routes are normalized to lowercase.
@@ -50,7 +56,7 @@ function useRoutes(pages) {
          */
         .replace(/\[(?:[.]{3})?(\w+?)\]/g, (_match, param) => `:${param}`);
 
-      if (path.endsWith("/") && path !== "/") {
+      if (path.endsWith('/') && path !== '/') {
         path = path.substring(0, path.length - 1);
       }
 
@@ -60,7 +66,7 @@ function useRoutes(pages) {
 
       return {
         path,
-        component: pages[key].default,
+        component: pages[key].default
       };
     })
     .filter((route) => route.component);
