@@ -161,54 +161,59 @@ export default function ProductsPage() {
   return (
     <Frame>
       <Page title="Select products to share via the food data collaboration">
-        <Tabs tabs={tabs} selected={selectedTab} onSelect={handleTabChange} />
         <Layout>
           <Layout.Section>
-            <div style={{ marginTop: '16px' }}>
-              <Card>
-                <div style={{ padding: '16px', display: 'flex' }}>
-                  <div style={{ flex: 1 }}>
-                    <TextField
-                      label="Search products"
-                      value={searchQuery}
-                      onChange={handleSearchChange}
-                      placeholder="Search products by name, variant, or SKU"
-                      clearButton
-                      onClearButtonClick={() => handleSearchChange('')}
-                      labelHidden
-                    />
-                  </div>
+            <Card>
+              <div style={{ padding: '16px' }}>
+                <TextField
+                  label="Search products"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  placeholder="Search products by name, variant, or SKU"
+                  clearButton
+                  onClearButtonClick={() => handleSearchChange('')}
+                  labelHidden
+                />
+              </div>
 
-                  <BulkActions
-                    selectedResources={selectedResources}
-                    products={products}
-                    toggleToast={toggleToast}
-                    clearSelection={clearSelection}
-                  />
-                </div>
+              <div style={{ borderTop: '1px solid #e1e3e5' }} />
 
-                {emptyStateMarkup || (
-                  <ProductsTable
-                    sortedProducts={sortedProducts}
-                    paginatedProducts={paginatedProducts}
-                    selectedResources={selectedResources}
-                    allResourcesSelected={allResourcesSelected}
-                    handleSelectionChange={handleSelectionChange}
-                    loadingProductIds={loadingProductIds}
-                    setLoadingProductIds={setLoadingProductIds}
-                    products={products}
-                    toggleToast={toggleToast}
-                    sortDirection={sortDirection}
-                    sortIndex={sortIndex}
-                    onSort={handleSort}
-                    currentPage={currentPage}
-                    itemsPerPage={ITEMS_PER_PAGE}
-                    onPreviousPage={handlePreviousPage}
-                    onNextPage={handleNextPage}
-                  />
-                )}
-              </Card>
-            </div>
+              <div>
+                <Tabs tabs={tabs} selected={selectedTab} onSelect={handleTabChange} />
+              </div>
+
+              <div style={{ borderTop: '1px solid #e1e3e5' }} />
+
+              <div style={{ padding: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                <BulkActions
+                  selectedResources={selectedResources}
+                  products={products}
+                  toggleToast={toggleToast}
+                  clearSelection={clearSelection}
+                />
+              </div>
+
+              {emptyStateMarkup || (
+                <ProductsTable
+                  sortedProducts={sortedProducts}
+                  paginatedProducts={paginatedProducts}
+                  selectedResources={selectedResources}
+                  allResourcesSelected={allResourcesSelected}
+                  handleSelectionChange={handleSelectionChange}
+                  loadingProductIds={loadingProductIds}
+                  setLoadingProductIds={setLoadingProductIds}
+                  products={products}
+                  toggleToast={toggleToast}
+                  sortDirection={sortDirection}
+                  sortIndex={sortIndex}
+                  onSort={handleSort}
+                  currentPage={currentPage}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPreviousPage={handlePreviousPage}
+                  onNextPage={handleNextPage}
+                />
+              )}
+            </Card>
           </Layout.Section>
         </Layout>
         {toastMarkup}

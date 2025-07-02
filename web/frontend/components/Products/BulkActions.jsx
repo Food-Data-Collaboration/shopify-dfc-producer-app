@@ -104,13 +104,14 @@ export default function BulkActions({
       <button
         type="button"
         style={{
-          background: '#4caf50',
-          color: 'white',
+          background: '#CDFEE1',
+          color: '#303030',
           border: 'none',
           borderRadius: '4px',
           padding: '8px 16px',
           cursor: isBulkMutating ? 'wait' : 'pointer',
-          opacity: isBulkMutating ? 0.7 : 1
+          opacity: isBulkMutating ? 0.7 : 1,
+          fontWeight: '500'
         }}
         onClick={() => handleBulkAction(true)}
         disabled={isBulkMutating}
@@ -120,13 +121,14 @@ export default function BulkActions({
       <button
         type="button"
         style={{
-          background: '#f44336',
-          color: 'white',
+          background: '#E3E3E3',
+          color: '#303030',
           border: 'none',
           borderRadius: '4px',
           padding: '8px 16px',
           cursor: isBulkMutating ? 'wait' : 'pointer',
-          opacity: isBulkMutating ? 0.7 : 1
+          opacity: isBulkMutating ? 0.7 : 1,
+          fontWeight: '500'
         }}
         onClick={() => handleBulkAction(false)}
         disabled={isBulkMutating}
