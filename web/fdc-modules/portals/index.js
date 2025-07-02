@@ -1,7 +1,6 @@
 import { Router } from 'express';
 
-import { getPortals, getPortal } from './get-portals.js';
-import updatePortal from './update-portal.js';
+import { getPortals, getPortal, updatePortal } from './portal-operations.js';
 
 const portals = Router({ mergeParams: true });
 

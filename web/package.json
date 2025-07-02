@@ -9,7 +9,7 @@
     "serve": "cross-env NODE_ENV=production node index.js"
   },
   "engines": {
-    "node": ">=14.13.1"
+    "node": ">=20.10.0"
   },
   "dependencies": {
     "@datafoodconsortium/connector": "^1.0.0-alpha.11",
