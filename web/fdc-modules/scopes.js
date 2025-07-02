@@ -28,7 +28,7 @@ const scopes = async (req, res) => {
     '@context': 'https://cdn.startinblox.com/owl/context-bis.jsonld',
     '@id': `${
       config.HOST
-    }api/scopes`,
+    }/api/scopes`,
     'dfc-t:scopes': {
       '@list': currentScopes.map((scope) => ({
         '@id': 'https://example.com/scopes/ReadEnterprise',

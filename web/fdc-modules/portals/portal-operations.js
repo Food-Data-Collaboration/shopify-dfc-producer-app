@@ -7,21 +7,18 @@ const dfcPlatform = ({
   ...(addContext ? { '@context': 'https://cdn.startinblox.com/owl/context-bis.jsonld' } : {}),
   '@id': id,
   '@type': 'dfc-t:Platform',
-  _id: {
-    $oid: encodeURIComponent(id)
-  },
+  localId: 'xxxxxxxxxxxxxxxxx',
+  title,
   description,
-  'dfc-t:hasAssignedScopes': {
-    '@list': [
-      scopes.map((scope) => ({
-        '@id': `https://data-server.cqcm.startinblox.com/enterprises/1/platforms/scopes/${scope}`,
-        '@type': 'dfc-t:Scope',
-        'dfc-t:scope': scope
-      }))],
-    '@type': 'rdf:List'
-  },
   termsandconditions: terms_and_conditions,
-  title
+  'dfc-t:hasAssignedScopes': {
+    '@list': scopes.map((scope) => ({
+      '@id': `https://data-server.cqcm.startinblox.com/enterprises/1/platforms/scopes/${scope}`,
+      '@type': 'dfc-t:Scope',
+      'dfc-t:scope': scope
+    })),
+    '@type': 'rdf:List'
+  }
 });
 
 export const getPortal = async (req, res) => {
@@ -48,7 +45,7 @@ export const getPortals = async (req, res) => {
     '@context': 'https://cdn.startinblox.com/owl/context-bis.jsonld',
     '@id': `${
       config.HOST
-    }api/dfc/Enterprises/${EnterpriseName}/Portals`,
+    }/api/dfc/Enterprises/${EnterpriseName}/Portals`,
     'dfc-t:platforms': {
       '@list': graph,
       '@type': 'rdf:List'
