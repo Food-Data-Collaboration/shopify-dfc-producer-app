@@ -41,12 +41,6 @@ export function AppBridgeProvider({ children }) {
 
     window.__SHOPIFY_DEV_HOST = host;
 
-    console.log('using app bridge config: ', {
-      host,
-      apiKey: process.env.SHOPIFY_API_KEY,
-      forceRedirect: true
-    });
-
     return {
       host,
       apiKey: process.env.SHOPIFY_API_KEY,
