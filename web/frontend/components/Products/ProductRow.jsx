@@ -134,7 +134,7 @@ export default function ProductRow({
               tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
-                window.open(productUrl, '_blank', 'noopener,noreferrer');
+                window.top.location.href = productUrl;
               }}
               style={{
                 color: '#2c6ecb',
