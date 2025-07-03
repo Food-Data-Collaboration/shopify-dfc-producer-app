@@ -43,9 +43,7 @@ export const getPortals = async (req, res) => {
 
   res.send({
     '@context': 'https://cdn.startinblox.com/owl/context-bis.jsonld',
-    '@id': `${
-      config.HOST
-    }/api/dfc/Enterprises/${EnterpriseName}/Portals`,
+    '@id': `${config.HOST.replace(/\/+$/, '')}/api/dfc/Enterprises/${EnterpriseName}/Portals`,
     'dfc-t:platforms': {
       '@list': graph,
       '@type': 'rdf:List'
