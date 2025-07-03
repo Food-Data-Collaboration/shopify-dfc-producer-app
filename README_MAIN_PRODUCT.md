@@ -293,6 +293,27 @@ When testing this for the first time, or if it’s required to have a clean slat
 - Sentry for error logging
 - Shopify
 
+### Creating a new environment
+
+Due to the complexity of running the application on Jelastic, we have ended up a stack of multiple containers. Nginx, our application and Postgres.
+
+Setting this up for the first time involved manual configuration changes, including nginx configuration and postgres ssl configuration.
+
+The easiest way to create a new environment is to clone an existing environment in jelastic.
+
+At the moment, the Nginx config for forwarded requests uses the application server's ip address. This does not update to the new IP address automatically.
+You will need to edit conf.d/ssl.conf and change the proxy pass line to reflect the new ip address of the application container.
+e.g: proxy_pass http://10.101.3.112:8081;
+
+You will also need to change the environment variables of the application server where appropriate.
+As a minimum, you will need to update the HOST environment variable to the external address of the server.
+
+### Creating a new application
+
+A quirk of shopify applications is that the shopify api key is baked into the distribution. A distribution cannot be used with multiple shopify applications.
+
+This api key is referenced in the build via an environment variable. The current deployment pipeline uses github actions to build a new docker container with each commit to main. The value of this api key is provided by a Github Secret which is referenced in the github action workflow file.
+
 ## Glossary of Terms
 
 *This glossary defines product-specific terminology to improve clarity and understanding.*
