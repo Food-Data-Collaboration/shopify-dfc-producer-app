@@ -12,6 +12,7 @@ import shopify from './shopify.js';
 import webhookHandlers from './webhooks/index.js';
 import checkUserAccessPermissions from './middleware/checkUserAccessPermissions.js';
 import checkOrdersFeature from './middleware/checkOrdersFeature.js';
+import checkScopePermissions from './middleware/checkScopePermissions.js';
 
 import ProductsModules from './api-modules/products/index.js';
 import UsersModules from './api-modules/users/index.js';
@@ -75,6 +76,7 @@ app.get(
   cors(),
   express.text({ type: '*/json' }),
   checkUserAccessPermissions,
+  // checkScopePermissions, // Will be handled after client's input
   getEnterprises
 );
 
@@ -84,6 +86,7 @@ app.get(
   express.text({ type: '*/json' }),
   populateShop,
   checkUserAccessPermissions,
+  checkScopePermissions,
   getEnterprise
 );
 
@@ -94,6 +97,7 @@ app.use(
   populateShop,
   checkUserAccessPermissions,
   checkOrdersFeature,
+  checkScopePermissions,
   fdcOrderRoutes
 );
 
@@ -103,15 +107,17 @@ app.use(
   express.json(),
   populateShop,
   checkUserAccessPermissions,
+  checkScopePermissions,
   fdcProductRoutes
 );
 
 app.use(
   '/api/dfc/Enterprises/:EnterpriseName/Portals',
   cors(),
-  // shopify.validateAuthenticatedSession(),
   express.json({ type: ['application/json', 'application/ld+json'] }),
   populateShop,
+  // checkUserAccessPermissions,
+  // checkScopePermissions,
   portals
 );
 

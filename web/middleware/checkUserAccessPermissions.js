@@ -51,6 +51,8 @@ async function authorise(accessToken, req, res, next) {
     });
   }
 
+  req.tokenSet = tokenSet;
+
   const userId = tokenSet.username;
   const { name } = tokenSet;
   const { shopName } = req;
@@ -60,6 +62,8 @@ async function authorise(accessToken, req, res, next) {
     email: tokenSet.email
   };
 
+  // If orders feature is not enabled, skip user-based authorization
+  // Scope-based authorization will be handled by checkScopePermissions middleware
   if (!shopName || !req.shop?.ordersFeatureEnabled) {
     return next();
   }
