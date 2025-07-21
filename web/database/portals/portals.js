@@ -9,7 +9,7 @@ function groupBy(array, keyFn) {
 }
 
 export const getPermissions = async (producer) => {
-  const result = await query('select pl.id, pl.description, pl.title, pl.terms_and_conditions, pp.scope from portal_listing pl left join portal_permissions pp on pl.id = pp.portal and pp.producer = $1', [producer]);
+  const result = await query('select pl.id, pl.external_id, pl.description, pl.title, pl.terms_and_conditions, pp.scope from portal_listing pl left join portal_permissions pp on pl.id = pp.portal and pp.producer = $1', [producer]);
   return Object.values(groupBy(result.rows, (row) => row.id))
     .map((group) => ({
       ...group[0],

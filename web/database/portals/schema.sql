@@ -1,7 +1,8 @@
 BEGIN;
 DROP TABLE IF EXISTS "portal_listing" CASCADE;
 CREATE TABLE IF NOT EXISTS "portal_listing" (
-    "id" TEXT PRIMARY KEY,
+    "id" serial PRIMARY KEY,
+    "external_id" TEXT,
     "description" TEXT UNIQUE NOT NULL,
     "title" TEXT NOT NULL,
     "terms_and_conditions" TEXT NOT NULL,

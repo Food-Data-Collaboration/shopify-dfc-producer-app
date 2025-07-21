@@ -2,10 +2,10 @@ import config from '../../config.js';
 import { getPermissions, updatePermissions } from '../../database/portals/portals.js';
 
 const dfcPlatform = ({
-  id, description, terms_and_conditions, title, scopes
+  id, external_id, description, terms_and_conditions, title, scopes
 }, addContext) => ({
   ...(addContext ? { '@context': 'https://cdn.startinblox.com/owl/context-bis.jsonld' } : {}),
-  '@id': id,
+  '@id': external_id,
   '@type': 'dfc-t:Platform',
   localId: id,
   title,
