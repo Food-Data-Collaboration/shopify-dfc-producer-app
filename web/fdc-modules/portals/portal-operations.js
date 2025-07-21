@@ -7,7 +7,7 @@ const dfcPlatform = ({
   ...(addContext ? { '@context': 'https://cdn.startinblox.com/owl/context-bis.jsonld' } : {}),
   '@id': id,
   '@type': 'dfc-t:Platform',
-  localId: 'xxxxxxxxxxxxxxxxx',
+  localId: id,
   title,
   description,
   termsandconditions: terms_and_conditions,
