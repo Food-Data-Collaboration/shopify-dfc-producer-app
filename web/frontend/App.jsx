@@ -1,6 +1,5 @@
 import { Loading, NavigationMenu } from '@shopify/app-bridge-react';
 import { Card, SkeletonBodyText } from '@shopify/polaris';
-import { useEffect, useState } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import Routes from './Routes';
 
@@ -9,38 +8,8 @@ import {
   PolarisProvider,
   QueryProvider
 } from './components';
-import { useAppQuery } from './hooks';
+import { useShopDetails } from './hooks';
 import PostInstallationSetup from './pages/PostInstallationSetup';
-
-function useShopDetails() {
-  const [isSetupCompleted, setIsSetupCompleted] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [ordersFeatureEnabled, setOrdersFeatureEnabled] = useState(false);
-  const [shopName, setShopName] = useState(null);
-  const [hasPermissions, setHasPermissions] = useState(false);
-
-  const { data: shopData, isLoading: shopLoading } = useAppQuery({
-    url: '/api/shop/details'
-  });
-
-  useEffect(() => {
-    if (!shopLoading) {
-      setIsSetupCompleted(shopData?.shop?.setupCompleted === true);
-      setOrdersFeatureEnabled(shopData?.shop?.ordersFeatureEnabled === true);
-      setHasPermissions(shopData?.shop?.hasPermissions === true);
-      setIsLoading(false);
-      setShopName(shopData?.shop.shopName);
-    }
-  }, [shopData, shopLoading]);
-
-  return {
-    isSetupCompleted,
-    ordersFeatureEnabled,
-    hasPermissions,
-    isLoading: isLoading || shopLoading,
-    shopName
-  };
-}
 
 const getNavigationLinks = (ordersFeatureEnabled, hasPermissions) => {
   const links = [{ label: 'Platform authorisation', destination: '/platformAuthorisation' }];

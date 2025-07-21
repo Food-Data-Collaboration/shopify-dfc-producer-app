@@ -6,11 +6,17 @@ import {
   TextContainer
 } from '@shopify/polaris';
 import { useNavigate } from 'react-router-dom';
+import { Loading } from '@shopify/app-bridge-react';
+import { useShopDetails } from '../hooks';
 
-export default function Home({ hasPermissions }) {
+export default function Home() {
   const navigate = useNavigate();
 
-  return (
+  const {
+    hasPermissions, isLoading
+  } = useShopDetails();
+
+  return isLoading ? <Loading /> : (
     <Page>
       <Layout>
         <Layout.Section>
