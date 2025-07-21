@@ -22,6 +22,10 @@ const SCOPE_MAPPING = {
 
 const checkScopePermissions = async (req, res, next) => {
   try {
+    if (req.shop?.ordersFeatureEnabled) {
+      return next();
+    }
+
     const { tokenSet, shopName, method } = req;
 
     if (!tokenSet || !tokenSet.client_id) {
