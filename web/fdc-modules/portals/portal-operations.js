@@ -2,15 +2,15 @@ import config from '../../config.js';
 import { getPermissions, updatePermissions } from '../../database/portals/portals.js';
 
 const dfcPlatform = ({
-  id, external_id, description, terms_and_conditions, title, scopes
+  id, externalId, description, termsAndConditions, title, scopes
 }, addContext) => ({
   ...(addContext ? { '@context': 'https://cdn.startinblox.com/owl/context-bis.jsonld' } : {}),
-  '@id': external_id,
+  '@id': externalId,
   '@type': 'dfc-t:Platform',
   localId: id,
   title,
   description,
-  termsandconditions: terms_and_conditions,
+  termsandconditions: termsAndConditions,
   'dfc-t:hasAssignedScopes': {
     '@list': scopes.map((scope) => ({
       '@id': `https://data-server.cqcm.startinblox.com/enterprises/1/platforms/scopes/${scope}`,
