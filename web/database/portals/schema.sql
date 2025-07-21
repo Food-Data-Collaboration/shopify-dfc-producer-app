@@ -16,7 +16,7 @@ DROP TABLE IF EXISTS "portal_permissions" CASCADE;
 CREATE TABLE IF NOT EXISTS "portal_permissions" (
     "id" serial PRIMARY KEY,
     "producer" INTEGER NOT NULL,
-    "portal" TEXT NOT NULL,
+    "portal" INTEGER NOT NULL,
     "scope" TEXT NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMP NOT NULL DEFAULT NOW(),
