@@ -156,6 +156,7 @@ app.use(
 );
 
 app.use(serveStatic(STATIC_PATH, { index: false }));
+app.use('/assets', serveStatic(`${process.cwd()}/frontend/assets`, { index: false }));
 
 app.use('/*', shopify.ensureInstalledOnShop(), async (_req, res) =>
   res

@@ -26,7 +26,6 @@ export default function PlatformAuthorisation({ shopName }) {
 
   return (
     <div>
-      <h1>Test!</h1>
       <solid-permissioning
         data-src={`https://${window.location.host}/api/dfc/Enterprises/${shopName}/Portals`}
         scopes-uri={`https://${window.location.host}/api/scopes`}
