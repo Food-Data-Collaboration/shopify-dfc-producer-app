@@ -116,8 +116,6 @@ app.use(
   cors(),
   express.json({ type: ['application/json', 'application/ld+json'] }),
   populateShop,
-  // checkUserAccessPermissions,
-  // checkScopePermissions,
   portals
 );
 

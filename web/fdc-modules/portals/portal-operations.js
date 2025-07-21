@@ -13,9 +13,8 @@ const dfcPlatform = ({
   termsandconditions: termsAndConditions,
   'dfc-t:hasAssignedScopes': {
     '@list': scopes.map((scope) => ({
-      '@id': `https://data-server.cqcm.startinblox.com/enterprises/1/platforms/scopes/${scope}`,
-      '@type': 'dfc-t:Scope',
-      'dfc-t:scope': scope
+      '@id': scope,
+      '@type': 'dfc-t:Scope'
     })),
     '@type': 'rdf:List'
   }
@@ -25,7 +24,7 @@ export const getPortal = async (req, res) => {
   const { PortalId } = req.params;
 
   const permissions = (await getPermissions(req.shop.id))
-    .find((portalPermissions) => portalPermissions.id === PortalId);
+    .find((portalPermissions) => portalPermissions.id.toString() === PortalId);
 
   if (permissions) {
     res.send(dfcPlatform(permissions, true));
@@ -52,12 +51,11 @@ export const getPortals = async (req, res) => {
 };
 
 export const updatePortal = async (req, res) => {
-  const updatedScopes = (req.body['dfc-t:hasAssignedScopes']?.['@list'] || []).map((data) => (data['dfc-t:scope']));
+  const updatedScopes = (req.body['dfc-t:hasAssignedScopes']?.['@list'] || []).map((data) => (data['@id']));
   await updatePermissions(req.shop.id, req.params.PortalId, updatedScopes);
 
   const permissions = (await getPermissions(req.shop.id))
-    .find((portalPermissions) => portalPermissions.id === req.params.PortalId);
+    .find((portalPermissions) => portalPermissions.id.toString() === req.params.PortalId);
 
-  res.send({});
   res.send(dfcPlatform(permissions, true));
 };

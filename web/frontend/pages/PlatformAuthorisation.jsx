@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useAppBridge } from '@shopify/app-bridge-react';
+import { getSessionToken } from '@shopify/app-bridge-utils';
 
 function createScript(url, onload) {
   const script = document.createElement('script');
@@ -10,6 +12,9 @@ function createScript(url, onload) {
 
 export default function PlatformAuthorisation({ shopName }) {
   const [ready, setReady] = useState(false);
+  const [authToken, setAuthToken] = useState();
+  const app = useAppBridge();
+
   useEffect(() => {
     createScript(
       'https://cdn.jsdelivr.net/npm/@startinblox/core@latest/dist/index.js',
@@ -22,7 +27,15 @@ export default function PlatformAuthorisation({ shopName }) {
     );
   }, []);
 
-  if (!ready) { return null; }
+  useEffect(() => {
+    async function getToken() {
+      const token = await getSessionToken(app);
+      setAuthToken(token);
+    }
+    getToken();
+  }, [app]);
+
+  if (!ready || !authToken) { return null; }
 
   return (
     <div>
@@ -31,6 +44,7 @@ export default function PlatformAuthorisation({ shopName }) {
         scopes-uri="https://cdn.startinblox.com/owl/dfc/taxonomies/scopes.jsonld"
         auto-lang
         noRouter
+        auth-token={authToken}
       />
     </div>
   );
