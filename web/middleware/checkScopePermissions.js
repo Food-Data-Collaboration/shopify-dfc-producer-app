@@ -2,21 +2,19 @@ import { query } from '../database/connect.js';
 
 const SCOPE_MAPPING = {
   GET: {
-    '/api/dfc/Enterprises': 'ReadEnterprise',
-    '/api/dfc/Enterprises/:EnterpriseName': 'ReadEnterprise',
-    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'ReadOrders',
-    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'ReadProducts',
-    '/api/dfc/Enterprises/:EnterpriseName/Portals': 'ReadEnterprise'
+    '/api/dfc/Enterprises': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise',
+    '/api/dfc/Enterprises/:EnterpriseName': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise',
+    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadOrders',
+    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadProducts',
+    '/api/dfc/Enterprises/:EnterpriseName/Portals': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise'
   },
   POST: {
-    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'WriteOrders',
-    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'WriteProducts',
-    '/api/dfc/Enterprises/:EnterpriseName/Portals': 'WriteEnterprise'
+    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteOrders',
+    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteProducts',
   },
   PUT: {
-    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'WriteOrders',
-    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'WriteProducts',
-    '/api/dfc/Enterprises/:EnterpriseName/Portals': 'WriteEnterprise'
+    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteOrders',
+    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteProducts',
   }
 };
 
