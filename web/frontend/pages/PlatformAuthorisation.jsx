@@ -28,7 +28,8 @@ export default function PlatformAuthorisation({ shopName }) {
     <div>
       <solid-permissioning
         data-src={`https://${window.location.host}/api/dfc/Enterprises/${shopName}/Portals`}
-        scopes-uri={`https://${window.location.host}/api/scopes`}
+        scopes-uri="https://cdn.startinblox.com/owl/dfc/taxonomies/scopes.jsonld"
+        auto-lang
         noRouter
       />
     </div>
