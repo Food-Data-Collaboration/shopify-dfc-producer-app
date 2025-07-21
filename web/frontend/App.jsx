@@ -45,7 +45,7 @@ function useShopDetails() {
 const getNavigationLinks = (ordersFeatureEnabled, hasPermissions) => {
   const links = [{ label: 'Platform authorisation', destination: '/platformAuthorisation' }];
 
-  if (ordersFeatureEnabled && hasPermissions) {
+  if (ordersFeatureEnabled) {
     links.unshift({ label: 'Hub Users', destination: '/hubUsers' });
   }
 
