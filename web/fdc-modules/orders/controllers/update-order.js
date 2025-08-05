@@ -11,6 +11,21 @@ import { persistLineIdMappings } from './lineItemMappings.js';
 import * as ids from './shopify/ids.js';
 import * as shopifyOrders from './shopify/orders.js';
 
+async function retry(fn, retries = 3, delayMs = 1000) {
+  let attempt = 0;
+  while (attempt < retries) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await fn();
+    } catch (err) {
+      attempt += 1;
+      if (attempt >= retries) { throw err; }
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((res) => { setTimeout(res, delayMs); }); // Wait before retrying
+    }
+  }
+}
+
 const updateOrder = async (req, res) => {
   try {
     console.log('updating order with body:>> ', req.body);
@@ -85,9 +100,11 @@ async function updateShopifyDraftOrder(client, order, reservationDate, enterpris
   const shopifyLines = (
     await Promise.all(dfcLines.map(shopifyOrders.dfcLineToShopifyLine))
   ).filter(({ quantity }) => quantity > 0);
+
+  const orderId = ids.extract(await order.getSemanticId());
   const shopifyDraftOrder = await shopifyOrders.updateOrder(
     client,
-    ids.extract(await order.getSemanticId()),
+    orderId,
     reservationDate,
     shopifyLines
   );
@@ -96,10 +113,11 @@ async function updateShopifyDraftOrder(client, order, reservationDate, enterpris
     (await order.getOrderStatus()) ===
     connector.VOCABULARY.STATES.ORDERSTATE.COMPLETE
   ) {
-    const completedOrder = await shopifyOrders.completeDraftOrder(
+    const completedOrder = await retry(() => shopifyOrders.completeDraftOrder(
       client,
-      ids.extract(await order.getSemanticId())
-    );
+      orderId
+    ), 10, 300);
+
     await database.completeDraftOrder(
       ids.extract(completedOrder.id),
       ids.extract(completedOrder.order.id),
