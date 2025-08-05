@@ -22,6 +22,7 @@ const createOrder = async (req, res) => {
     const customerId = await findCustomer(client, req.user.id);
 
     if (!customerId) {
+      console.error(`Cannot place order. No customer set up in Shopify matching ordering client email address - ${req.user.id}`);
       return res.status(403).send(`Customer with email matching ${req.user.id} must exist in shopify for you to create an order`);
     }
 
