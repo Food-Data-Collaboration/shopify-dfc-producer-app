@@ -4,8 +4,8 @@ import { getPortals, getPortal, updatePortal } from './portal-operations.js';
 
 const portals = Router({ mergeParams: true });
 
-portals.get('/', getPortals);
+portals.get('/', shopify.validateAuthenticatedSession(), getPortals);
 portals.put('/:PortalId', shopify.validateAuthenticatedSession(), updatePortal);
-portals.get('/:PortalId', getPortal);
+portals.get('/:PortalId', shopify.validateAuthenticatedSession(), getPortal);
 
 export default portals;
