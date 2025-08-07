@@ -17,7 +17,7 @@ import {
 import BulkActions from '../components/Products/BulkActions';
 import ProductsTable from '../components/Products/ProductsTable';
 import { useAppQuery } from '../hooks';
-import { filterProducts, sortProducts } from '../utils/productUtils';
+import { filterVariants, sortVariants, flattenProductsToVariants } from '../utils/productUtils';
 
 export default function ProductsPage() {
   const { data, isLoading } = useAppQuery({
@@ -30,21 +30,27 @@ export default function ProductsPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [selectedTab, setSelectedTab] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [loadingProductIds, setLoadingProductIds] = useState([]);
+  const [loadingVariantIds, setLoadingVariantIds] = useState([]);
 
   const ITEMS_PER_PAGE = 10;
   const products = data?.products || [];
 
-  const filteredProducts = useMemo(
-    () =>
-      filterProducts(products, searchQuery, selectedTab),
-    [products, searchQuery, selectedTab]
+  // Flatten products into individual variant rows
+  const allVariants = useMemo(
+    () => flattenProductsToVariants(products),
+    [products]
   );
 
-  const sortedProducts = useMemo(
+  const filteredVariants = useMemo(
     () =>
-      sortProducts(filteredProducts, sortIndex, sortDirection),
-    [filteredProducts, sortIndex, sortDirection]
+      filterVariants(allVariants, searchQuery, selectedTab),
+    [allVariants, searchQuery, selectedTab]
+  );
+
+  const sortedVariants = useMemo(
+    () =>
+      sortVariants(filteredVariants, sortIndex, sortDirection),
+    [filteredVariants, sortIndex, sortDirection]
   );
 
   const handleSort = useCallback(
@@ -62,22 +68,22 @@ export default function ProductsPage() {
     [sortIndex, sortDirection]
   );
 
-  const paginatedProducts = useMemo(() => {
+  const paginatedVariants = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return sortedProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [sortedProducts, currentPage, ITEMS_PER_PAGE]);
+    return sortedVariants.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [sortedVariants, currentPage, ITEMS_PER_PAGE]);
 
   /**
    * resourceFilter is important here as we use pagination. Passing empty array as
    * as initial value will make the `Select All` checkbox not work correctly
-   * and passing the full list of products will select all products in all pages
-   * passing the paginated list of products will for some reason disable the `unselect all`
-   * functionality, so we need to filter the products based on the current page.
+   * and passing the full list of variants will select all variants in all pages
+   * passing the paginated list of variants will for some reason disable the `unselect all`
+   * functionality, so we need to filter the variants based on the current page.
    */
   const {
     selectedResources, allResourcesSelected, handleSelectionChange, clearSelection
-  } = useIndexResourceState(products, {
-    resourceFilter: (product) => paginatedProducts.findIndex(((p) => p.id === product.id)) !== -1
+  } = useIndexResourceState(allVariants, {
+    resourceFilter: (variant) => paginatedVariants.findIndex(((v) => v.id === variant.id)) !== -1
   });
 
   const handlePreviousPage = useCallback(() => {
@@ -86,8 +92,8 @@ export default function ProductsPage() {
 
   const handleNextPage = useCallback(() => {
     setCurrentPage((prev) =>
-      Math.min(prev + 1, Math.ceil(sortedProducts.length / ITEMS_PER_PAGE)));
-  }, [sortedProducts.length]);
+      Math.min(prev + 1, Math.ceil(sortedVariants.length / ITEMS_PER_PAGE)));
+  }, [sortedVariants.length]);
 
   const toggleToast = useCallback((message) => {
     setToastMessage(message);
@@ -152,7 +158,7 @@ export default function ProductsPage() {
   }
 
   const emptyStateMarkup =
-    filteredProducts.length === 0 ? (
+    filteredVariants.length === 0 ? (
       <EmptyState heading="No products found" image="/empty-state.svg">
         <p>Try changing your search term or filters.</p>
       </EmptyState>
@@ -187,7 +193,7 @@ export default function ProductsPage() {
               <div style={{ padding: '16px', display: 'flex', justifyContent: 'flex-end' }}>
                 <BulkActions
                   selectedResources={selectedResources}
-                  products={products}
+                  variantRows={allVariants}
                   toggleToast={toggleToast}
                   clearSelection={clearSelection}
                 />
@@ -195,14 +201,13 @@ export default function ProductsPage() {
 
               {emptyStateMarkup || (
                 <ProductsTable
-                  sortedProducts={sortedProducts}
-                  paginatedProducts={paginatedProducts}
+                  sortedVariants={sortedVariants}
+                  paginatedVariants={paginatedVariants}
                   selectedResources={selectedResources}
                   allResourcesSelected={allResourcesSelected}
                   handleSelectionChange={handleSelectionChange}
-                  loadingProductIds={loadingProductIds}
-                  setLoadingProductIds={setLoadingProductIds}
-                  products={products}
+                  loadingVariantIds={loadingVariantIds}
+                  setLoadingVariantIds={setLoadingVariantIds}
                   toggleToast={toggleToast}
                   sortDirection={sortDirection}
                   sortIndex={sortIndex}
