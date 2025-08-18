@@ -2,14 +2,13 @@ import { IndexTable, Pagination } from '@shopify/polaris';
 import ProductRow from './ProductRow';
 
 export default function ProductsTable({
-  sortedProducts,
-  paginatedProducts,
+  sortedVariants,
+  paginatedVariants,
   selectedResources,
   allResourcesSelected,
   handleSelectionChange,
-  loadingProductIds,
-  setLoadingProductIds,
-  products,
+  loadingVariantIds,
+  setLoadingVariantIds,
   toggleToast,
   sortDirection,
   sortIndex,
@@ -24,15 +23,14 @@ export default function ProductsTable({
     plural: 'products'
   };
 
-  const rowMarkup = paginatedProducts.map((product, index) => (
+  const rowMarkup = paginatedVariants.map((variantRow, index) => (
     <ProductRow
-      key={product.id}
-      product={product}
+      key={variantRow.id}
+      variantRow={variantRow}
       position={index}
       selectedResources={selectedResources}
-      loadingProductIds={loadingProductIds}
-      setLoadingProductIds={setLoadingProductIds}
-      products={products}
+      loadingVariantIds={loadingVariantIds}
+      setLoadingVariantIds={setLoadingVariantIds}
       toggleToast={toggleToast}
     />
   ));
@@ -41,7 +39,7 @@ export default function ProductsTable({
     <>
       <IndexTable
         resourceName={resourceName}
-        itemCount={sortedProducts.length}
+        itemCount={sortedVariants.length}
         selectedItemsCount={
             allResourcesSelected ? 'All' : selectedResources.length
           }
@@ -82,11 +80,11 @@ export default function ProductsTable({
           onPrevious={onPreviousPage}
           hasNext={
             currentPage <
-            Math.ceil(sortedProducts.length / itemsPerPage)
+            Math.ceil(sortedVariants.length / itemsPerPage)
           }
           onNext={onNextPage}
           label={`${currentPage} of ${Math.ceil(
-            sortedProducts.length / itemsPerPage
+            sortedVariants.length / itemsPerPage
           )}`}
         />
       </div>

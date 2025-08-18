@@ -4,14 +4,14 @@ import { useAppMutation } from '../../hooks';
 
 export default function BulkActions({
   selectedResources,
-  products,
+  variantRows,
   toggleToast,
   clearSelection
 }) {
   const [isBulkMutating, setIsBulkMutating] = useState(false);
   const queryClient = useQueryClient();
 
-  const { mutateAsync: mutateBulkProductStatus } = useAppMutation({
+  const { mutateAsync: mutateBulkVariantStatus } = useAppMutation({
     reactQueryOptions: {
       onSuccess: (response) => {
         if (!response || typeof response !== 'object') {
@@ -51,17 +51,21 @@ export default function BulkActions({
 
     setIsBulkMutating(true);
 
-    // Create a map of product IDs to variant IDs
+    // Create a map of product IDs to variant IDs for the selected variants
     const productVariantsMap = {};
-    selectedResources.forEach((productId) => {
-      const product = products.find((p) => p.id === productId);
-      if (product && product.variants) {
-        productVariantsMap[productId] = product.variants.map((v) => v.id);
+    selectedResources.forEach((variantRowId) => {
+      const variantRow = variantRows.find((v) => v.id === variantRowId);
+      if (variantRow) {
+        const { productId } = variantRow;
+        if (!productVariantsMap[productId]) {
+          productVariantsMap[productId] = [];
+        }
+        productVariantsMap[productId].push(variantRow.variant.id);
       }
     });
 
     try {
-      const response = await mutateBulkProductStatus({
+      const response = await mutateBulkVariantStatus({
         url: '/api/products/bulk/fdcStatus',
         fetchInit: {
           method: 'POST',
@@ -79,11 +83,11 @@ export default function BulkActions({
         ? Object.keys(response).length
         : 0;
 
-      toggleToast(`${count || selectedResources.length} products ${enable ? 'enabled' : 'disabled'} for FDC`);
+      toggleToast(`${count || selectedResources.length} variants ${enable ? 'enabled' : 'disabled'} for FDC`);
       clearSelection();
     } catch (error) {
-      console.error(`Error bulk ${enable ? 'enabling' : 'disabling'} products`, error);
-      toggleToast(`Failed to ${enable ? 'enable' : 'disable'} products for FDC`);
+      console.error(`Error bulk ${enable ? 'enabling' : 'disabling'} variants`, error);
+      toggleToast(`Failed to ${enable ? 'enable' : 'disable'} variants for FDC`);
     } finally {
       setIsBulkMutating(false);
     }

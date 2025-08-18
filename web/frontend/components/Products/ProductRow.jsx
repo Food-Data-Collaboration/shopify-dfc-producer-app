@@ -1,28 +1,31 @@
 import { IndexTable, Tag, Thumbnail } from '@shopify/polaris';
 import { useQueryClient } from 'react-query';
 import { useAppMutation } from '../../hooks';
-import { getMinPrice, getTotalInventory } from '../../utils/productUtils';
+import { getVariantInventory, getVariantPrice } from '../../utils/productUtils';
 import { extractShopName } from '../../utils/shopUtils';
 import ProductStatusBadge from './ProductStatusBadge';
 
 export default function ProductRow({
-  product,
+  variantRow,
   position,
   selectedResources,
-  loadingProductIds,
-  setLoadingProductIds,
+  loadingVariantIds,
+  setLoadingVariantIds,
   toggleToast
 }) {
   const {
-    id: productId, title, variants, images
-  } = product;
-  const isFDCEnabled = product.fdcVariants?.some(
-    (variant) => variant.enabled
-  );
-  const isLoading = loadingProductIds.includes(productId);
+    id: variantRowId,
+    productId,
+    productTitle,
+    productImages,
+    variant,
+    isFDCEnabled
+  } = variantRow;
+
+  const isLoading = loadingVariantIds.includes(variantRowId);
   const queryClient = useQueryClient();
 
-  const { mutateAsync: mutateProductStatus } = useAppMutation({
+  const { mutateAsync: mutateVariantStatus } = useAppMutation({
     reactQueryOptions: {
       onSuccess: (response) => {
         // Cache update: Update products data with the response
@@ -45,38 +48,35 @@ export default function ProductRow({
           };
         });
 
-        // Remove the product from loading state
-        setLoadingProductIds((prev) =>
-          prev.filter((_id) => _id !== productId));
+        // Remove the variant from loading state
+        setLoadingVariantIds((prev) =>
+          prev.filter((_id) => _id !== variantRowId));
       },
       onError: (err) => {
-        console.error('Error updating product status:', err);
-        toggleToast('Failed to update product status');
-        setLoadingProductIds((prev) =>
-          prev.filter((_id) => _id !== productId));
+        console.error('Error updating variant status:', err);
+        toggleToast('Failed to update variant status');
+        setLoadingVariantIds((prev) =>
+          prev.filter((_id) => _id !== variantRowId));
       }
     }
   });
 
-  const totalInventory = getTotalInventory(product);
-
+  const inventory = getVariantInventory(variant);
   const inventoryDisplay =
-    totalInventory > 0 ? (
-      totalInventory.toString()
+    inventory > 0 ? (
+      inventory.toString()
     ) : (
       <span style={{ color: '#d82c0d' }}>0 in stock</span>
     );
 
-  const minPrice = getMinPrice(product);
+  const price = getVariantPrice(variant);
 
   let thumbnailSrc = 'https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg';
-  if (images && images.edges && images.edges.length > 0) {
-    thumbnailSrc = images.edges[0].node.src;
-  } else if (images && images.length > 0 && images[0]?.src) {
-    thumbnailSrc = images[0].src;
+  if (productImages && productImages.edges && productImages.edges.length > 0) {
+    thumbnailSrc = productImages.edges[0].node.src;
+  } else if (productImages && productImages.length > 0 && productImages[0]?.src) {
+    thumbnailSrc = productImages[0].src;
   }
-
-  const variantTags = variants?.map((v) => v.title).filter(Boolean) || [];
 
   const shopName = extractShopName();
   const productUrl = shopName
@@ -88,12 +88,10 @@ export default function ProductRow({
       return;
     }
 
-    const variantIds = variants.map(({ id }) => id);
+    // Add variant to loading state
+    setLoadingVariantIds((prev) => [...prev, variantRowId]);
 
-    // Add product to loading state
-    setLoadingProductIds((prev) => [...prev, productId]);
-
-    mutateProductStatus({
+    mutateVariantStatus({
       url: `/api/products/${productId}/fdcStatus`,
       productId,
       currentStatus: isFDCEnabled,
@@ -104,38 +102,48 @@ export default function ProductRow({
         },
         body: JSON.stringify({
           enabled: !isFDCEnabled,
-          variants: variantIds
+          variants: [variant.id]
         })
       }
     })
       .then(() => {
-        toggleToast(`Product ${isFDCEnabled ? 'disabled' : 'enabled'} for FDC`);
+        toggleToast(`Variant ${isFDCEnabled ? 'disabled' : 'enabled'} for FDC`);
       })
       .catch((error) => {
-        console.error('Error updating product status', error);
+        console.error('Error updating variant status', error);
       });
+  };
+
+  const handleProductClick = (e) => {
+    e.stopPropagation();
+    window.top.location.href = productUrl;
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleProductClick(e);
+    }
   };
 
   return (
     <IndexTable.Row
-      id={productId}
-      key={productId}
-      selected={selectedResources.includes(productId)}
+      id={variantRowId}
+      key={variantRowId}
+      selected={selectedResources.includes(variantRowId)}
       position={position}
     >
       <IndexTable.Cell>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Thumbnail source={thumbnailSrc} alt={title} size="small" />
+          <Thumbnail source={thumbnailSrc} alt={productTitle} size="small" />
           <div
             style={{ maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word' }}
           >
             <div
               role="button"
               tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                window.top.location.href = productUrl;
-              }}
+              onClick={handleProductClick}
+              onKeyDown={handleKeyDown}
               style={{
                 color: '#2c6ecb',
                 textDecoration: 'none',
@@ -152,7 +160,7 @@ export default function ProductRow({
                     margin: 0
                   }}
                 >
-                  {title}
+                  {productTitle}
                 </p>
               </div>
             </div>
@@ -161,14 +169,12 @@ export default function ProductRow({
       </IndexTable.Cell>
       <IndexTable.Cell>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-          {variants?.map((v) =>
-            (v.title ? <Tag key={v.id || v.title}>{v.title}</Tag> : null))}
-          {variantTags.length === 0 && <span>Default</span>}
+          {variant.title ? <Tag>{variant.title}</Tag> : <span>Default</span>}
         </div>
       </IndexTable.Cell>
       <IndexTable.Cell>
         $
-        {minPrice.toFixed(2)}
+        {price.toFixed(2)}
       </IndexTable.Cell>
       <IndexTable.Cell>{inventoryDisplay}</IndexTable.Cell>
       <IndexTable.Cell>
