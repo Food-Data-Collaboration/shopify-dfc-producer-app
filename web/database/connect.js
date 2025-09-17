@@ -60,9 +60,16 @@ const getShopConnectionDetails = async (shopId) => {
   }
 };
 
-const getAllShopNames = async () => {
+const getAllShopNames = async (portalId) => {
   try {
-    const result = await centralPool.query(
+    const result = portalId ? await centralPool.query(
+      `SELECT shop.shop_name 
+       FROM portal_permissions pp
+       JOIN portal_listing pl ON pp.portal = pl.id
+       JOIN shops shop on shop.id = pp.producer
+       WHERE pl.id = $1 AND pp.scope = 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise'`,
+      [portalId]
+    ) : await centralPool.query(
       'SELECT shop_name FROM shops'
     );
 

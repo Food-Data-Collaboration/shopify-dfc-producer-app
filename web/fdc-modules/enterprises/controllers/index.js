@@ -81,7 +81,9 @@ export const getEnterprise = async (req, res) => {
 export const getEnterprises = async (req, res) => {
   try {
     const connector = await loadConnectorWithResources();
-    const shopNames = await getAllShopNames();
+    const shopNames = await getAllShopNames(
+      req.shop?.ordersFeatureEnabled ? null : req.tokenSet.client_id
+    );
     const graph = await connector.export(shopNames.map((enterpriseName) => connector.createEnterprise({ semanticId: `/api/dfc/Enterprises/${enterpriseName}` })));
     res.type('application/json');
     res.send(graph);

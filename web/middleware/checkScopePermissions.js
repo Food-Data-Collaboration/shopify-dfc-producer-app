@@ -2,7 +2,6 @@ import { query } from '../database/connect.js';
 
 const SCOPE_MAPPING = {
   GET: {
-    '/api/dfc/Enterprises': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise',
     '/api/dfc/Enterprises/:EnterpriseName': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise',
     '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadOrders',
     '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadProducts',

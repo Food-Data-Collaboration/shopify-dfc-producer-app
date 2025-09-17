@@ -76,7 +76,6 @@ app.get(
   cors(),
   express.text({ type: '*/json' }),
   checkUserAccessPermissions,
-  // checkScopePermissions, // Will be handled after client's input
   getEnterprises
 );
 
