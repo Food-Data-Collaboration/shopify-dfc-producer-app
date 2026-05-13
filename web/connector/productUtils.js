@@ -1,43 +1,27 @@
-import SuppliedProduct from '@datafoodconsortium/connector/lib/SuppliedProduct.js';
-import { SKOSConcept } from '@datafoodconsortium/connector';
+import { SuppliedProduct, Concept } from '@fooddatacollaboration/linkml-connector';
 import config from '../config.js';
 import currencyMeasureFor from '../utils/currencyMeasureFor.js';
 import { throwError } from '../utils/index.js';
 import { fetchProductTypeById } from '../utils/productTypes.js';
 import loadConnectorWithResources from './index.js';
 
-const createQuantitativeValue = (connector, value, unit) =>
-  connector.createQuantity({
-    value,
-    unit
-  });
+let _qtyCounter = 0;
+const nextQtyId = () => `_:qty_${++_qtyCounter}`;
 
-const createPrice = (connector, value, unit, vatRate) =>
-  connector.createPrice({
-    value,
-    unit,
-    vatRate
-  });
+const createQuantitativeValue = (connector, value, unit) =>
+  connector.createQuantitativeValue(nextQtyId(), { value, hasUnit: unit });
+
+const createPrice = (connector, vatRate) =>
+  connector.createPrice(`_:price_${++_qtyCounter}`, { vatRate });
 
 const createOffer = (connector, semanticId, price) =>
-  connector.createOffer({
-    semanticId: `${semanticId}/Offer`,
-    price
-  });
+  connector.createOffer(`${semanticId}/Offer`, { hasPrice: price.semanticId });
 
-const createCatalogItem = (
-  connector,
-  semanticId,
-  offers,
-  sku,
-  stockLimitation
-) =>
-  connector.createCatalogItem({
-    connector,
-    semanticId: `${semanticId}/CatalogItem`,
-    offers,
+const createCatalogItem = (connector, semanticId, offers, sku, stockLimitation) =>
+  connector.createCatalogItem(`${semanticId}/CatalogItem`, {
     sku,
-    stockLimitation
+    stockLimitation,
+    offeredThrough: offers.map((o) => o.semanticId),
   });
 
 async function createVariantSuppliedProduct(
@@ -48,22 +32,17 @@ async function createVariantSuppliedProduct(
 ) {
   try {
     const connector = await loadConnectorWithResources();
-    const kilogram = connector.MEASURES.UNIT.QUANTITYUNIT.KILOGRAM;
+    const kilogram = 'dfc-m:Kilogram';
 
     const semanticBase = `${config.HOST}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${variant.id}`;
 
     const quantity = createQuantitativeValue(
       connector,
-      variant?.inventoryItem?.measurement?.weight?.value || 0,
+      variant?.weight || 0,
       kilogram
     );
-    const hasVat = variant.taxable ? 1.0 : 0.0; // TODO check how the vat rate can be added
-    const price = createPrice(
-      connector,
-      variant.price,
-      currencyMeasureFor(connector, variant.currencyCode),
-      hasVat
-    );
+    const hasVat = variant.taxable ? 1.0 : 0.0;
+    const price = createPrice(connector, hasVat);
     const offer = createOffer(connector, semanticBase, price);
     const inventoryQuantity =
       variant.inventoryPolicy === 'CONTINUE' ? -1 : variant.inventoryQuantity;
@@ -75,30 +54,22 @@ async function createVariantSuppliedProduct(
       inventoryQuantity
     );
 
-    const productType = fetchProductTypeById(
-      shopDefaultProductType
-    );
+    const productType = fetchProductTypeById(shopDefaultProductType);
 
-    const suppliedProduct = connector.createSuppliedProduct({
-      connector,
-      semanticId: semanticBase,
+    const suppliedProduct = connector.createSuppliedProduct(semanticBase, {
       name: `${parentProduct.title} - ${variant.title}`,
       description: parentProduct.descriptionHtml,
-      quantity,
-      catalogItems: [catalogItem],
-      productType: productType ? new SKOSConcept({
-        semanticId: productType.id,
-        connector
-      }) : null
+      hasQuantity: quantity,
+      hasType: productType ? productType.id : undefined,
     });
 
     const image = variant.image?.src || parentProduct.images[0]?.src;
 
     if (image) {
-      suppliedProduct.addImage(image);
+      suppliedProduct.image = image;
     }
 
-    return [suppliedProduct, offer, catalogItem];
+    return [suppliedProduct, offer, catalogItem, price, quantity];
   } catch (error) {
     throwError('Error creating variant supplied product:', error);
   }
@@ -132,30 +103,39 @@ async function createMappedVariant(
 
   const semanticBase = `${config.HOST}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${retailVariant.id}`;
 
-  const plannedConsumptionFlow = connector.createPlannedConsumptionFlow({
-    semanticId: `${semanticBase}/AsPlannedConsumptionFlow`,
-    quantity: connector.createQuantity({
-      value: noOfItemsPerPackage,
-      unit: connector.MEASURES.UNIT.QUANTITYUNIT.PIECE
-    }),
-    product: retailSuppliedProduct
-  });
+  const piece = 'dfc-m:Piece';
 
-  const plannedProductionFlow = connector.createPlannedProductionFlow({
-    semanticId: `${semanticBase}/AsPlannedProductionFlow`,
-    quantity: connector.createQuantity({
-      value: 1.0,
-      unit: connector.MEASURES.UNIT.QUANTITYUNIT.PIECE
-    }),
-    product: wholesaleSuppliedProduct
-  });
+  const consumptionQty = createQuantitativeValue(
+    connector,
+    noOfItemsPerPackage,
+    piece
+  );
+  const productionQty = createQuantitativeValue(connector, 1.0, piece);
 
-  const plannedTransformation = connector.createPlannedTransformation({
-    semanticId: `${semanticBase}/AsPlannedTransformation`,
-    transformationType: connector.VOCABULARY.TRANSFORMATIONTYPE.COMBINES,
-    consumptionFlows: [plannedConsumptionFlow],
-    productionFlows: [plannedProductionFlow]
-  });
+  const plannedConsumptionFlow = connector.createAsPlannedConsumptionFlow(
+    `${semanticBase}/AsPlannedConsumptionFlow`,
+    {
+      hasQuantity: consumptionQty,
+      consumes: retailSuppliedProduct.semanticId,
+    }
+  );
+
+  const plannedProductionFlow = connector.createAsPlannedProductionFlow(
+    `${semanticBase}/AsPlannedProductionFlow`,
+    {
+      hasQuantity: productionQty,
+      produces: wholesaleSuppliedProduct.semanticId,
+    }
+  );
+
+  const plannedTransformation = connector.createAsPlannedTransformation(
+    `${semanticBase}/AsPlannedTransformation`,
+    {
+      hasInput: [plannedConsumptionFlow.semanticId],
+      hasOutput: [plannedProductionFlow.semanticId],
+      hasTransformationType: 'dfc-v:Combine',
+    }
+  );
 
   return [
     retailSuppliedProduct,
@@ -164,7 +144,9 @@ async function createMappedVariant(
     plannedProductionFlow,
     plannedTransformation,
     ...retailOthers,
-    ...wholesaleOthers
+    ...wholesaleOthers,
+    consumptionQty,
+    productionQty,
   ];
 }
 
@@ -213,19 +195,12 @@ const createParent = async (product, enterpriseName, shopDefaultProductType) => 
   const connector = await loadConnectorWithResources();
   const semanticBase = `${config.HOST}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${product.id}`;
 
-  const productType = fetchProductTypeById(
-    shopDefaultProductType
-  );
+  const productType = fetchProductTypeById(shopDefaultProductType);
 
-  return connector.createSuppliedProduct({
-    connector,
-    semanticId: semanticBase,
+  return connector.createSuppliedProduct(semanticBase, {
     name: product.title,
     description: product.descriptionHtml,
-    productType: productType ? new SKOSConcept({
-      semanticId: productType.id,
-      connector
-    }) : null
+    hasType: productType ? productType.id : undefined,
   });
 };
 
@@ -260,8 +235,10 @@ async function createSuppliedProducts(productsFromShopify, enterpriseName, shopD
       }
 
       const parent = await createParent(product, enterpriseName, shopDefaultProductType);
-      parent.setVariants(variants);
-      variants.forEach((variant) => variant.addIsVariantOf(parent));
+      parent.hasVariant = variants[0].semanticId;
+      variants.forEach((variant) => {
+        variant.isVariantOf = parent.semanticId;
+      });
       return [parent, ...variantsGraph];
     });
     return (await Promise.all(productsPromises)).flat(2);
@@ -291,8 +268,8 @@ async function exportSuppliedProducts(productsFromShopify, enterpriseName, shopD
       return [];
     }
 
-    const exports = await connector.export(suppliedDFCProducts);
-    return exports;
+    const exports = await connector.export(...suppliedDFCProducts);
+    return JSON.stringify(exports);
   } catch (error) {
     console.error(error);
     throwError('Error exporting supplied products:', error);
@@ -303,5 +280,5 @@ async function exportSuppliedProducts(productsFromShopify, enterpriseName, shopD
 export {
   createSuppliedProducts,
   createVariantSuppliedProduct,
-  exportSuppliedProducts
+  exportSuppliedProducts,
 };

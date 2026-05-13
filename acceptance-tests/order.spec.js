@@ -1,8 +1,9 @@
 import { Issuer } from 'openid-client'
 import loadConnectorWithResources from '../web/connector/index.js';
-import { OrderLine, Order, SaleSession, Offer } from '@datafoodconsortium/connector';
+import { OrderLine, Order, SaleSession, Offer, SuppliedProduct } from '@fooddatacollaboration/linkml-connector';
 import axios from 'axios';
 import * as ids from '../web/fdc-modules/orders/controllers/shopify/ids.js';
+
 describe('orders', () => {
 
     const refreshToken = '';
@@ -40,11 +41,11 @@ describe('orders', () => {
             { productId: product2, quantity: 3 },
         ];
 
-        const orderGraph = await connector.export([...createOrder({ orderId: null, lines }), createSalesSession()]);
+        const orderGraph = await connector.export(...createOrder({ orderId: null, lines }), createSalesSession());
 
         const { order, orderLines } = await sendOrder(axios.post, 'Orders', orderGraph);
 
-        expect(await order.getOrderStatus()).toBe(connector.VOCABULARY.STATES.ORDERSTATE.HELD);
+        expect(order.hasOrderStatus).toBe('dfc-v:Held');
         expect(orderLines.length).toBe(2);
 
         await assertLine({ line: orderLines[0], quantity: 5, productId: product1 });
@@ -59,12 +60,12 @@ describe('orders', () => {
             { productId: product3, quantity: 1 },
         ];
 
-        const orderGraph = await connector.export([...createOrder({ orderId, lines })]);
+        const orderGraph = await connector.export(...createOrder({ orderId, lines }));
 
         const { order, orderLines } = await sendOrder(axios.put, `Orders/${orderId}`, orderGraph);
 
-        expect(ids.extract(await order.getSemanticId())).toBe(orderId);
-        expect(await order.getOrderStatus()).toBe(connector.VOCABULARY.STATES.ORDERSTATE.HELD);
+        expect(ids.extract(order.semanticId)).toBe(orderId);
+        expect(order.hasOrderStatus).toBe('dfc-v:Held');
 
         await assertLine({ line: orderLines[0], quantity: 6, productId: product1 });
         await assertLine({ line: orderLines[1], quantity: 2, productId: product2 });
@@ -75,8 +76,8 @@ describe('orders', () => {
         const graph = await get(`Orders/${orderId}`);
         const {order, orderLines} = await extractOrderAndLines(graph);
 
-        expect(ids.extract(await order.getSemanticId())).toBe(orderId);
-        expect(await order.getOrderStatus()).toBe(connector.VOCABULARY.STATES.ORDERSTATE.HELD);
+        expect(ids.extract(order.semanticId)).toBe(orderId);
+        expect(order.hasOrderStatus).toBe('dfc-v:Held');
 
         await assertLine({ line: orderLines[0], quantity: 6, productId: product1 });
         await assertLine({ line: orderLines[1], quantity: 2, productId: product2 });
@@ -104,7 +105,7 @@ describe('orders', () => {
     }, timeout);
 
     it('Can create a new line', async () => {
-        const lineGraph = await connector.export(createOrderLineGraph(orderId)({productId: product4, quantity: 5}, 0));
+        const lineGraph = await connector.export(...createOrderLineGraph(orderId)({productId: product4, quantity: 5}, 0));
 
         const line = await sendLine(axios.post, `Orders/${orderId}/orderLines`, lineGraph);
         
@@ -112,7 +113,7 @@ describe('orders', () => {
     }, timeout);
 
     it('Can update a line', async () => {
-        const lineGraph = await connector.export(createOrderLineGraph(orderId)({id:  producerLines[product4], productId: product4, quantity: 10}, 0));
+        const lineGraph = await connector.export(...createOrderLineGraph(orderId)({id:  producerLines[product4], productId: product4, quantity: 10}, 0));
 
         const line = await sendLine(axios.put, `Orders/${orderId}/orderLines/${producerLines[product4]}`, lineGraph);
         
@@ -125,12 +126,12 @@ describe('orders', () => {
             { id: producerLines[product2], productId: product2, quantity: 2 }
         ];
 
-        const orderGraph = await connector.export([...createOrder({ orderId, lines, status: connector.VOCABULARY.STATES.ORDERSTATE.COMPLETE })]);
+        const orderGraph = await connector.export(...createOrder({ orderId, lines, status: 'dfc-v:Complete' }));
 
         const { order, orderLines } = await sendOrder(axios.put, `Orders/${orderId}`, orderGraph);
 
-        expect(ids.extract(await order.getSemanticId())).toBe(orderId);
-        expect(await order.getOrderStatus()).toBe(connector.VOCABULARY.STATES.ORDERSTATE.COMPLETE);
+        expect(ids.extract(order.semanticId)).toBe(orderId);
+        expect(order.hasOrderStatus).toBe('dfc-v:Complete');
 
         expect(orderLines.length).toBe(2);
 
@@ -146,6 +147,10 @@ describe('orders', () => {
         expect(orders.length).toBeGreaterThan(0);
     }, timeout);
 
+    async function asArray(value) {
+        return Array.isArray(value) ? value : [value];
+    }
+
     async function get(endpoint) {
         const result = await axios.get(`${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/${endpoint}`,
             {
@@ -159,7 +164,7 @@ describe('orders', () => {
             }
         );
         expect(result.status).toBe(200);
-        return await connector.import(result.data);
+        return asArray(connector.import(result.data));
     }
 
     async function sendOrder(method, endpoint, data) {
@@ -176,10 +181,10 @@ describe('orders', () => {
             }
         );
         expect(result.status).toBe(200);
-        const rehydrated = await connector.import(result.data);
+        const rehydrated = asArray(connector.import(result.data));
         const order = rehydrated.filter((item) => item instanceof Order)[0];
-        orderId = ids.extract(await order.getSemanticId());
-        const orderLines = await order.getLines();
+        orderId = ids.extract(order.semanticId);
+        const orderLines = Array.isArray(order.hasPart) ? order.hasPart : (order.hasPart ? [order.hasPart] : []);
         return { order, orderLines };
     }
 
@@ -197,32 +202,39 @@ describe('orders', () => {
             }
         );
         expect(result.status).toBe(200);
-        const rehydrated = await connector.import(result.data);
+        const rehydrated = asArray(connector.import(result.data));
         return rehydrated.filter((item) => item instanceof OrderLine)[0];
     }
 
     async function extractOrderAndLines(graph){
-        const order = graph.filter((item) => item instanceof Order)[0];
-        const orderLines = await order.getLines();
+        const items = asArray(graph);
+        const order = items.filter((item) => item instanceof Order)[0];
+        const orderLines = Array.isArray(order.hasPart) ? order.hasPart : (order.hasPart ? [order.hasPart] : []);
         return { order, orderLines };
     }
 
     async function assertLine({ line, quantity, productId }) {
-        const id = ids.extract(await line.getSemanticId());
+        const id = ids.extract(line.semanticId);
 
-        expect(line.getQuantity()).toBe(quantity);
-        expect(ids.extract(await (await (await line.getOffer()).getOfferedItem()).getSemanticId())).toBe(productId);
+        const concerns = Array.isArray(line.concerns) ? line.concerns : [line.concerns];
+        const offer = concerns[0];
+        const products = Array.isArray(offer.offers) ? offer.offers : [offer.offers];
+        const product = products[0];
+
+        expect(line.quantity).toBe(quantity);
+        expect(ids.extract(typeof product === 'string' ? product : product.semanticId)).toBe(productId);
         producerLines[productId] = id;
     }
 
-    function createOrder({ orderId, lines, status = connector.VOCABULARY.STATES.ORDERSTATE.HELD }) {
+    function createOrder({ orderId, lines, status = 'dfc-v:Held' }) {
         const orderLines = lines.flatMap(createOrderLineGraph(orderId))
-        const order = new Order({
-            connector,
-            semanticId: `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/Orders/${orderId ? orderId : '#'}`,
-            lines: orderLines.filter((item) => item instanceof OrderLine),
-            orderStatus: status
-        });
+        const order = connector.createOrder(
+            `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/Orders/${orderId ? orderId : '#'}`,
+            {
+                hasPart: orderLines.filter((item) => item instanceof OrderLine).map(l => l.semanticId),
+                hasOrderStatus: status
+            }
+        );
 
         return [order, ...orderLines];
     }
@@ -231,33 +243,33 @@ describe('orders', () => {
         const startDate = new Date();
         const endDate = new Date();
         endDate.setDate(endDate.getDate() + 7);
-        return new SaleSession({
-            connector,
-            semanticId: `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/SalesSession/#`,
-            beginDate: startDate.toString(),
-            endDate: endDate.toString(),
-        });
+        return connector.createSaleSession(
+            `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/SalesSession/#`,
+            {
+                startDate: startDate.toString(),
+                endDate: endDate.toString(),
+            }
+        );
     }
-
 
     function createOrderLineGraph(orderId) {
         return (line, i) => {
-            const suppliedProduct = connector.createSuppliedProduct({
-                semanticId: `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/SuppliedProducts/${line.productId}`
-            });
+            const suppliedProduct = connector.createSuppliedProduct(
+                `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/SuppliedProducts/${line.productId}`
+            );
 
-            const offer = new Offer({
-                connector,
-                semanticId: `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/Offers/${i + 1}`,
-                offeredItem: suppliedProduct
-            });
+            const offer = connector.createOffer(
+                `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/Offers/${i + 1}`,
+                { offers: suppliedProduct.semanticId }
+            );
 
-            const orderLine = new OrderLine({
-                connector,
-                semanticId: `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/Orders/${orderId || '#'}/OrderLines/${line.id ? line.id : i + 1}`,
-                quantity: line.quantity,
-                offer
-            });
+            const orderLine = connector.createOrderLine(
+                `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/Orders/${orderId || '#'}/OrderLines/${line.id ? line.id : i + 1}`,
+                {
+                    quantity: line.quantity,
+                    concerns: [offer.semanticId]
+                }
+            );
 
             return [offer, orderLine, suppliedProduct]
         }

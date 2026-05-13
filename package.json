@@ -15,7 +15,7 @@
     "build:db": "node ./web/database/build.js"
   },
   "dependencies": {
-    "@datafoodconsortium/connector": "jgaehring/connector-typescript#rc-alpha-10",
+    "@fooddatacollaboration/linkml-connector": "file:/home/raggedstaff/gitrepos/Food-Data-Collaboration/DFC-LinkML/typescript-connector/fooddatacollaboration-linkml-connector-2.0.0.tgz",
     "@shopify/cli": "3.78.2",
     "babel-jest": "^29.5.0",
     "body-parser": "^1.20.2",
@@ -40,6 +40,7 @@
     "@babel/plugin-transform-modules-commonjs": "^7.22.5",
     "@babel/preset-env": "^7.22.5",
     "@babel/preset-typescript": "^7.22.5",
+    "axios": "^1.16.0",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.26.2",
     "cross-env": "^7.0.3",
     "eslint": "^7.32.0 || ^8.2.0",

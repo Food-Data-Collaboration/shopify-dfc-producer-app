@@ -1,13 +1,13 @@
 function currencyMeasureFor(connector, currencyCode) {
   const measure = {
-    EUR: connector.MEASURES.UNIT.CURRENCYUNIT.EURO,
-    GBP: connector.MEASURES.UNIT.CURRENCYUNIT.POUNDSTERLING,
-    USD: connector.MEASURES.UNIT.CURRENCYUNIT.USDOLLAR
+    EUR: 'dfc-m:Euro',
+    GBP: 'dfc-m:PoundSterling',
+    USD: 'dfc-m:USDollar',
   }[currencyCode];
 
   if (!measure) {
     throw new Error(
-      `Unknown connector currency mapping for currenct code ${currencyCode}`
+      `Unknown connector currency mapping for currency code ${currencyCode}`
     );
   }
 

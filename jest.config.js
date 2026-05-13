@@ -4,12 +4,13 @@ module.exports = {
     '^.+\\.(ts|tsx)?$': 'ts-jest',
     '^.+\\.(js|jsx)$': 'babel-jest'
   },
+  setupFiles: ['<rootDir>/test-env.js'],
   setupFilesAfterEnv: ['<rootDir>/test-setup.js'],
   transformIgnorePatterns: [],
   testEnvironment: 'node',
   moduleNameMapper: {
-    '@datafoodconsortium/connector': require.resolve(
-      '@datafoodconsortium/connector'
+    '@fooddatacollaboration/linkml-connector': require.resolve(
+      '@fooddatacollaboration/linkml-connector'
     )
   }
 };

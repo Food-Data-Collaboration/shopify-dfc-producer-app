@@ -326,11 +326,17 @@ export async function completeDraftOrder(client, orderId) {
 }
 
 export async function dfcLineToShopifyLine(dfcLine) {
-  const offer = await dfcLine.getOffer();
-  const product = await offer.getOfferedItem();
+  const offer = Array.isArray(dfcLine.concerns) ? dfcLine.concerns[0] : dfcLine.concerns;
+  let semanticId;
+  if (offer) {
+    const product = Array.isArray(offer.offers) ? offer.offers[0] : offer.offers;
+    semanticId = typeof product === 'string' ? product : product?.semanticId;
+  } else {
+    semanticId = dfcLine.semanticId;
+  }
   return {
-    variantId: ids.variant(ids.extract(product.getSemanticId())),
-    quantity: dfcLine.getQuantity()
+    variantId: ids.variant(ids.extract(semanticId)),
+    quantity: dfcLine.quantity
   };
 }
 
@@ -346,10 +352,16 @@ export async function createUpdatedShopifyLines(draftOrder, dfcOrderLine) {
     async (accumulator, shopifyOutputLine) => {
       const { lines, hasBeenReplacement } = await accumulator;
 
-      const offer = await dfcOrderLine.getOffer();
-      const product = await offer.getOfferedItem();
+      const offer = Array.isArray(dfcOrderLine.concerns) ? dfcOrderLine.concerns[0] : dfcOrderLine.concerns;
+      let semanticId;
+      if (offer) {
+        const product = Array.isArray(offer.offers) ? offer.offers[0] : offer.offers;
+        semanticId = typeof product === 'string' ? product : product?.semanticId;
+      } else {
+        semanticId = dfcOrderLine.semanticId;
+      }
 
-      if (ids.extract(shopifyOutputLine.variant.id) === ids.extract(await product.getSemanticId())) {
+      if (ids.extract(shopifyOutputLine.variant.id) === ids.extract(semanticId)) {
         return { lines: [...lines, await dfcLineToShopifyLine(dfcOrderLine)], hasBeenReplacement: true };
       }
       return { lines: [...lines, shopifyOutputLineToInputLine(shopifyOutputLine)], hasBeenReplacement };

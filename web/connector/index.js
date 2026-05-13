@@ -1,30 +1,30 @@
-import {Connector} from '@datafoodconsortium/connector';
-import facets from './thesaurus/facets.json' with { type: 'json' };
-import measures from './thesaurus/measures.json' with { type: 'json' };
-import productTypes from './thesaurus/productTypes.json' with { type: 'json' };
-import vocabulary from './thesaurus/vocabulary.json' with { type: 'json' };
+import { Connector } from '@fooddatacollaboration/linkml-connector';
 import { throwError } from '../utils/index.js';
 
 let _connector;
 let connected = false;
 
+async function loadWithFallback(loader, name) {
+  try {
+    await loader();
+  } catch (error) {
+    console.warn(`Failed to load ${name} from URL:`, error.message);
+  }
+}
+
 export default async () => {
   try {
     if (!connected) {
       const connector = new Connector();
-      const resourcePromisesArray = [
-        connector.loadFacets(JSON.stringify(facets)),
-        connector.loadMeasures(JSON.stringify(measures)),
-        connector.loadProductTypes(JSON.stringify(productTypes)),
-        connector.loadVocabulary(JSON.stringify(vocabulary))
-      ];
-      await Promise.all(resourcePromisesArray);
-
+      await Promise.all([
+        loadWithFallback(() => connector.loadMeasuresFromUrl(), 'measures'),
+        loadWithFallback(() => connector.loadFacetsFromUrl(), 'facets'),
+        loadWithFallback(() => connector.loadProductTypesFromUrl(), 'productTypes'),
+      ]);
       connected = true;
       _connector = connector;
       return _connector;
     }
-
     return _connector;
   } catch (error) {
     throwError('Error loading connector', error);

@@ -12,7 +12,7 @@
     "node": ">=20.10.0"
   },
   "dependencies": {
-    "@datafoodconsortium/connector": "^1.0.0-alpha.11",
+    "@fooddatacollaboration/linkml-connector": "file:/home/raggedstaff/gitrepos/Food-Data-Collaboration/DFC-LinkML/typescript-connector/fooddatacollaboration-linkml-connector-2.0.0.tgz",
     "@shopify/cli": "^3.78.2",
     "@shopify/shopify-app-express": "^5.0.17",
     "@shopify/shopify-app-session-storage-postgresql": "^4.0.17",

@@ -1,86 +1,114 @@
 import productTypesJson from '../connector/thesaurus/productTypes.json' with { type: 'json' };
 
+const buildConceptMap = () => {
+  const map = new Map();
+  const sources = Array.isArray(productTypesJson) ? productTypesJson : [productTypesJson];
+  for (const source of sources) {
+    const graph = source['@graph'] || source;
+    if (!Array.isArray(graph)) continue;
+    for (const node of graph) {
+      if (node['@id'] && node['@id'].includes('productTypes.rdf#')) {
+        const idParts = node['@id'].split('#');
+        const id = idParts[idParts.length - 1];
+        let label = id;
+        const prefLabelKey = Object.keys(node).find((k) =>
+          k.includes('skos/core#prefLabel')
+        );
+        if (prefLabelKey) {
+          const labels = node[prefLabelKey];
+          const engLabel = (Array.isArray(labels) ? labels : [labels]).find(
+            (l) => l['@language'] === 'en'
+          );
+          if (engLabel && engLabel['@value']) {
+            label = engLabel['@value'];
+          }
+        }
+        map.set(id, { id: node['@id'], label });
+      }
+    }
+  }
+  return map;
+};
+
+const conceptMap = buildConceptMap();
 
 export const parseProductTypesFromJson = () => {
   const concepts = [];
   const topConcepts = [];
   const idToConceptMap = new Map();
 
-  // Parse the graph
-  if (productTypesJson && productTypesJson[0] && productTypesJson[0]['@graph']) {
-    const graph = productTypesJson[0]['@graph'];
+  const sources = Array.isArray(productTypesJson) ? productTypesJson : [productTypesJson];
+  for (const source of sources) {
+    const graph = source['@graph'] || source;
+    if (!Array.isArray(graph)) continue;
 
-    // Find the ontology node
-    const ontologyNode = graph.find((node) =>
-      node['@type'] &&
-      node['@type'].some((type) => type.includes('owl#Ontology')) &&
-      Object.keys(node).some((key) => key.includes('skos/core#hasTopConcept')));
+    const ontologyNode = graph.find(
+      (node) =>
+        Array.isArray(node['@type']) &&
+        node['@type'].some((t) => t.includes('owl#Ontology'))
+    );
 
-    const hasTopConceptKey = Object.keys(ontologyNode || {}).find((key) => key.includes('skos/core#hasTopConcept'));
+    const hasTopConceptKey = Object.keys(ontologyNode || {}).find((key) =>
+      key.includes('skos/core#hasTopConcept')
+    );
 
     if (hasTopConceptKey) {
-      // Extract top concept IDs
       const topConceptsRefs = ontologyNode[hasTopConceptKey];
-      for (const ref of topConceptsRefs) {
+      for (const ref of Array.isArray(topConceptsRefs) ? topConceptsRefs : [topConceptsRefs]) {
         if (ref['@id']) {
-          const id = extractConceptId(ref['@id']);
-          topConcepts.push(id);
+          const parts = ref['@id'].split('#');
+          topConcepts.push(parts[parts.length - 1]);
         }
       }
     }
 
-    // Process all nodes
     for (const node of graph) {
-      // Check for product type nodes:
-      // 1. Check if it's a node with productTypes.rdf# in the ID (actual product type)
-      const isProductTypeNode = node['@id'] && node['@id'].includes('productTypes.rdf#');
+      if (!node['@id'] || !node['@id'].includes('productTypes.rdf#')) continue;
 
-      // 2. Check if it has relevant SKOS properties that indicate it's a concept
-      const hasSkosProperties = Object.keys(node).some((key) =>
-        key.includes('skos/core#prefLabel') ||
-        key.includes('skos/core#broader') ||
-        key.includes('skos/core#narrower'));
+      const hasSkosKeys = Object.keys(node).some(
+        (k) =>
+          k.includes('skos/core#prefLabel') ||
+          k.includes('skos/core#broader') ||
+          k.includes('skos/core#narrower')
+      );
+      if (!hasSkosKeys) continue;
 
-      if (isProductTypeNode && hasSkosProperties) {
-        const id = extractConceptId(node['@id']);
+      const parts = node['@id'].split('#');
+      const id = parts[parts.length - 1];
 
-        // Get preferred label in English
-        let label = id; // Default to ID
-
-        const prefLabelKey = Object.keys(node).find((key) => key.includes('skos/core#prefLabel'));
-
-        if (prefLabelKey) {
-          const labels = node[prefLabelKey];
-          const engLabel = labels.find((l) => l['@language'] === 'en');
-          if (engLabel && engLabel['@value']) {
-            label = engLabel['@value'];
-          }
+      let label = id;
+      const prefLabelKey = Object.keys(node).find((k) =>
+        k.includes('skos/core#prefLabel')
+      );
+      if (prefLabelKey) {
+        const labels = node[prefLabelKey];
+        const engLabel = (Array.isArray(labels) ? labels : [labels]).find(
+          (l) => l['@language'] === 'en'
+        );
+        if (engLabel && engLabel['@value']) {
+          label = engLabel['@value'];
         }
-
-        // Find parent concept (broader)
-        let parentId = null;
-        const broaderKey = Object.keys(node).find((key) => key.includes('skos/core#broader'));
-        if (broaderKey) {
-          const broaderRefs = node[broaderKey];
-          if (broaderRefs.length > 0 && broaderRefs[0]['@id']) {
-            parentId = extractConceptId(broaderRefs[0]['@id']);
-          }
-        }
-
-        const concept = {
-          id,
-          label,
-          parentId,
-          children: []
-        };
-
-        concepts.push(concept);
-        idToConceptMap.set(id, concept);
       }
+
+      let parentId = null;
+      const broaderKey = Object.keys(node).find((k) =>
+        k.includes('skos/core#broader')
+      );
+      if (broaderKey) {
+        const broaderRefs = node[broaderKey];
+        const firstRef = Array.isArray(broaderRefs) ? broaderRefs[0] : broaderRefs;
+        if (firstRef && firstRef['@id']) {
+          const bp = firstRef['@id'].split('#');
+          parentId = bp[bp.length - 1];
+        }
+      }
+
+      const concept = { id, label, parentId, children: [] };
+      concepts.push(concept);
+      idToConceptMap.set(id, concept);
     }
   }
 
-  // Build parent-child relationships
   for (const concept of concepts) {
     if (concept.parentId) {
       const parent = idToConceptMap.get(concept.parentId);
@@ -90,53 +118,10 @@ export const parseProductTypesFromJson = () => {
     }
   }
 
-  return {
-    productTypes: concepts,
-    topLevelProductTypes: topConcepts
-  };
-};
-
-export const extractConceptId = (url) => {
-  if (!url) {
-    return '';
-  }
-  const parts = url.split('#');
-  if (parts.length > 1) {
-    return parts[parts.length - 1];
-  }
-  return url;
+  return { productTypes: concepts, topLevelProductTypes: topConcepts };
 };
 
 export const fetchProductTypeById = (typeId) => {
-  if (!productTypesJson || !productTypesJson[0] || !productTypesJson[0]['@graph']) {
-    return null;
-  }
-
-  const graph = productTypesJson[0]['@graph'];
-
-  const matchingNode = graph.find((node) => {
-    if (node['@id'] && node['@id'].includes('productTypes.rdf#')) {
-      const extractedId = extractConceptId(node['@id']);
-      return extractedId === typeId;
-    }
-    return false;
-  });
-
-  if (!matchingNode) {
-    return null;
-  }
-
-  const id = matchingNode['@id'];
-
-  let label = id;
-  const prefLabelKey = Object.keys(matchingNode).find((key) => key.includes('skos/core#prefLabel'));
-  if (prefLabelKey) {
-    const labels = matchingNode[prefLabelKey];
-    const engLabel = labels.find((l) => l['@language'] === 'en');
-    if (engLabel && engLabel['@value']) {
-      label = engLabel['@value'];
-    }
-  }
-
-  return { id, label };
+  const entry = conceptMap.get(typeId);
+  return entry || null;
 };
