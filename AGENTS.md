@@ -44,7 +44,7 @@
 
 ## Connector API (`@datafoodconsortium/connector`)
 
-- **Root** installs from git: `jgaehring/connector-typescript#rc-alpha-12`. **`web/`** installs from npm: `^1.0.0-alpha.12`.
+- Both root and `web/` install from npm: `^1.0.0-beta.2`.
 - Default import path: `@datafoodconsortium/connector` (NOT `@fooddatacollaboration/linkml-connector` — that's on the `linkml-connector` branch).
 - Object creation uses named-param objects: `new Order({ connector, semanticId, ... })` / `connector.createQuantity({ value, hasUnit })`.
 - Property access via getters: `obj.getSemanticId()`, `obj.getOrderStatus()`, `obj.getQuantity()`.
