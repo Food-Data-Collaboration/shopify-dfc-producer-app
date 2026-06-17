@@ -44,7 +44,7 @@
 
 ## Connector API (`@datafoodconsortium/connector`)
 
-- Both root and `web/` install from npm: `^1.0.0-beta.2`.
+- Both root and `web/` install from npm: `^1.0.0-alpha.12`.
 - Default import path: `@datafoodconsortium/connector` (NOT `@fooddatacollaboration/linkml-connector` — that's on the `linkml-connector` branch).
 - Object creation uses named-param objects: `new Order({ connector, semanticId, ... })` / `connector.createQuantity({ value, hasUnit })`.
 - Property access via getters: `obj.getSemanticId()`, `obj.getOrderStatus()`, `obj.getQuantity()`.
@@ -55,3 +55,16 @@
 ## Migration branch
 
 `linkml-connector` branch has a full migration to `@fooddatacollaboration/linkml-connector` v2.0.0. The API is substantially different (field-based access, spread export, compact URIs). If working on that branch, see its version of this file for the new conventions.
+
+## Beta.2 upgrade notes
+
+Upgrading `@datafoodconsortium/connector` from alpha.12 to beta.2 is a **breaking change**. Verified via test failures on this repo:
+
+- **`connector.export()` context URI changed** — beta.2 outputs `https://www.datafoodconsortium.org/wp-content/plugins/wordpress-context-jsonld/context_1.16.0.jsonld`, not the `w3id.org` URI.
+- **Blank node IDs doubled** — export produces `_:_:b10` instead of `_:b10`.
+- **Semantic IDs lose HOST** — `HOST` env var is no longer picked up; export produces `undefinedapi/dfc/...` instead of `http://localhost:3629/api/dfc/...`.
+- **Status properties flattened** — `hasOrderStatus` and `hasFulfilmentStatus` are now plain strings (`"dfc-v:Held"`) instead of `{"@id":"dfc-v:Held"}` objects.
+- **`lineItems` shape changed** — no longer an array; code using `.reduce()` on it will break.
+- **Currency mapping changed** — tests get `Unknown connector currency mapping for currenct code undefined`.
+
+Files that need updating: `web/fdc-modules/orders/dfc/dfc-order.js`, `web/connector/productUtils.js`, `web/connector/mocks.js`, and all corresponding test files.
