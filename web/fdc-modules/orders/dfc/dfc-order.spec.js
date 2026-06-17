@@ -234,7 +234,7 @@ describe('dfc orders', () => {
 
             const lines = await createDfcOrderLinesFromShopify(orderFromShopify, {}, 'test-shop', '1234');
 
-            expect(lines).toBe(`{"@context":"https://www.datafoodconsortium.org"}`);
+            expect(lines).toBe(`{"@context":"https://w3id.org/dfc/ontology/context/context_1.16.0.json"}`);
         })
 
         describe("Order Status", () => {
