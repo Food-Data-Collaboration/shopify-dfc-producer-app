@@ -9,12 +9,12 @@
 | `npm run build:db` | Build DB — runs `web/database/build.js` (central + per-shop schema) |
 | `yarn dev` (root) | Start Shopify dev server (3 ports: 36327, 36328, 36329) |
 | `cd web && yarn serve` | Production Express server |
-| `npx jest --no-coverage path/to/test.spec.js` | Single test runner |
+| `npx jest --no-coverage path/to/test.spec.js` | Single test (run from root) |
 
 ## Repo conventions
 
 - **`yarn` is used** for dependency management (root + `web/` both have `yarn.lock`). Both dirs need `yarn install`.
-- **`web/` is ESM** (`"type": "module"`). Root `package.json` is CJS.
+- **`web/` is ESM** (`"type": "module"`). Root `package.json` is CJS — jest.config.js uses `require.resolve`.
 - **Node >=20.10.0** required (`web/package.json` engines).
 - **Two `shopify.app.*.toml`** files exist (`alex`, `sonouno`) — per-developer Shopify App configs.
 - `.env` lives in **`web/`** — `web/config.js` loads it via dotenv with yup validation.
@@ -22,11 +22,11 @@
 
 ## Tests
 
-- Test files are a mix of `.spec.js` (7 files) and `.test.js` (3 files) across the tree.
+- Test files are a mix of `.spec.js` and `.test.js` across the tree.
 - DB-dependent tests (`web/database/*`, `lineItemMappings.spec.js`) fail without a running PostgreSQL.
 - Acceptance tests (`acceptance-tests/`) require a live Shopify app + OIDC credentials.
-- Thesauri at `web/connector/thesaurus/` (4 JSON: facets, measures, productTypes, vocabulary). Loaded by singleton at init.
-- Tests import `@datafoodconsortium/connector` directly — `moduleNameMapper` in `jest.config.js` resolves root vs `web/` `node_modules`.
+- Thesauri at `web/connector/thesaurus/` (4 JSON: facets, measures, productTypes, vocabulary). Loaded by connector singleton at init.
+- Tests import `@datafoodconsortium/connector` directly — `moduleNameMapper` in root `jest.config.js` resolves the correct `node_modules`.
 
 ## Architecture
 
@@ -39,10 +39,12 @@
 - **Database**: Multi-tenant PostgreSQL. Central `shop_registry` maps shop_name → db_name. `web/database/connect.js` creates per-shop pools via `getShopDbConnection(shopId)`. SSL with `rejectUnauthorized: false`.
 - **Local DB**: `local-db/docker-compose.yml` — PostgreSQL on port 5435 + pgAdmin on 5050.
 - **Config** (`web/config.js`): validates `HOST`, `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET_KEY`, `OIDC_*`, `DATABASE_HOST_URL`, `SHOP_REGISTRY_DATABASE_NAME` via yup.
-- **CI/CD**: GitHub Actions build Docker image (copies `web/` only), deploy to Jelastic. `staging` → `ofn-producer-staging`, `main` → `ofn-producer`.
+- **Docker**: `Dockerfile` copies only `web/` into the image, runs `yarn` + frontend build.
+- **CI/CD**: GitHub Actions (`.github/workflows/`). `build-and-deploy.yml` is a reusable workflow: builds Docker image, pushes to `ghcr.io`, redeploys on Jelastic. `deploy-staging.yml` triggers on `staging` branch → `ofn-producer-staging`. `deploy-main.yml` triggers on `main` → `ofn-producer`. Neither has run yet.
 
-## Connector API (`@datafoodconsortium/connector` v1.0.0-alpha.12)
+## Connector API (`@datafoodconsortium/connector`)
 
+- **Root** installs from git: `jgaehring/connector-typescript#rc-alpha-12`. **`web/`** installs from npm: `^1.0.0-alpha.12`.
 - Default import path: `@datafoodconsortium/connector` (NOT `@fooddatacollaboration/linkml-connector` — that's on the `linkml-connector` branch).
 - Object creation uses named-param objects: `new Order({ connector, semanticId, ... })` / `connector.createQuantity({ value, hasUnit })`.
 - Property access via getters: `obj.getSemanticId()`, `obj.getOrderStatus()`, `obj.getQuantity()`.
