@@ -12,8 +12,7 @@
     "node": ">=14.13.1"
   },
   "dependencies": {
-<<<<<<< HEAD
-    "@datafoodconsortium/connector": "^1.0.0-beta.2",
+    "@datafoodconsortium/connector": "1.0.0-beta.2",
     "@shopify/cli": "^3.78.2",
     "@shopify/shopify-app-express": "^5.0.17",
     "@shopify/shopify-app-session-storage-postgresql": "^4.0.17",
