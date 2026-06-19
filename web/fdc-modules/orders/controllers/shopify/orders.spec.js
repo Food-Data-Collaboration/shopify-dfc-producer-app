@@ -10,32 +10,26 @@ describe('Orders', () => {
         connector = await loadConnectorWithResources();
         draftOrder = {
             id: 12345,
-            lineItems: {
-                edges: [
-                    {
-                        node: {
-                            id: 1234,
-                            quantity: 5,
-                            variant: {
-                                id: "gid://shopify/ProductVariant/99",
-                                title: '500g x 12',
-                                price: 55.603
-                            }
-                        }
-                    },
-                    {
-                        node: {
-                            id: 5678,
-                            quantity: 6,
-                            variant: {
-                                id: "gid://shopify/ProductVariant/100",
-                                title: '99g',
-                                price: 25
-                            }
-                        }
+            lineItems: [
+                {
+                    id: 1234,
+                    quantity: 5,
+                    variant: {
+                        id: "gid://shopify/ProductVariant/99",
+                        title: '500g x 12',
+                        price: 55.603
                     }
-                ]
-            }
+                },
+                {
+                    id: 5678,
+                    quantity: 6,
+                    variant: {
+                        id: "gid://shopify/ProductVariant/100",
+                        title: '99g',
+                        price: 25
+                    }
+                }
+            ]
         };
     })
 
