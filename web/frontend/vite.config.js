@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: join(process.cwd(), '../.env') });
 
+const root = dirname(fileURLToPath(import.meta.url));
+
 if (
   process.env.npm_lifecycle_event === 'build' &&
   !process.env.CI &&
@@ -44,14 +46,22 @@ if (host === 'localhost') {
   };
 }
 
+const appBridgeCorePath = join(root, 'node_modules/@shopify/app-bridge-core');
+
 export default defineConfig({
-  root: dirname(fileURLToPath(import.meta.url)),
+  root,
   plugins: [react()],
   define: {
     'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY)
   },
   resolve: {
-    preserveSymlinks: true
+    preserveSymlinks: true,
+    alias: [
+      {
+        find: /^@shopify\/app-bridge-core(\/.*)?$/,
+        replacement: `${appBridgeCorePath}$1`
+      }
+    ]
   },
   server: {
     host: 'localhost',
