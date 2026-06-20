@@ -11,5 +11,6 @@ logs
 # vite build output
 dist/
 
-# Enforce exact dependency resolution via committed lockfile
+# Yarn lockfile committed for reproducible installs
+# npm lockfile ignored — dependency management is via yarn
 package-lock.json
