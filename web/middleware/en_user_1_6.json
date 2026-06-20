@@ -1,5 +1,5 @@
 {
-  "@context": "http://static.datafoodconsortium.org/ontologies/context.json",
+  "@context": "https://w3id.org/dfc/ontology/context/context_1.16.0.json",
   "@base": "http://myplatform.com",
   "@graph": [
     {
