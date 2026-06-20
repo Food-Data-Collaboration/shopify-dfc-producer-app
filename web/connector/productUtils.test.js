@@ -123,6 +123,10 @@ describe('createSuppliedProducts', () => {
   });
 
   it('should create unmapped suppliedProducts from shopify Products and their Variants', async () => {
+    const semanticIdParent = `http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/${suppliedProductsWithUnmappedFdcVariants[0].id}`;
+    const semanticIdProductOne = `http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/${suppliedProductsWithUnmappedFdcVariants[0].variants[0].id}`;
+    const semanticIdProductTwo = `http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/${suppliedProductsWithUnmappedFdcVariants[0].variants[1].id}`;
+
     const result = await createSuppliedProducts(
       suppliedProductsWithUnmappedFdcVariants,
       'producer-shop'
@@ -132,13 +136,13 @@ describe('createSuppliedProducts', () => {
 
     expect(suppliedProducts).toHaveLength(3);
 
-    expect(suppliedProducts[0].getSemanticId()).toBe('http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/9932577997073');
+    expect(suppliedProducts[0].getSemanticId()).toBe(semanticIdParent);
     expect(suppliedProducts[0].getName()).toBe('Baked British Beans');
 
-    expect(suppliedProducts[1].getSemanticId()).toBe('http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/49889697366289');
+    expect(suppliedProducts[1].getSemanticId()).toBe(semanticIdProductOne);
     expect(suppliedProducts[1].getName()).toBe('Baked British Beans - Retail bottle, 40ml');
 
-    expect(suppliedProducts[2].getSemanticId()).toBe('http://localhost:3629/api/dfc/Enterprises/producer-shop/SuppliedProducts/49889697399057');
+    expect(suppliedProducts[2].getSemanticId()).toBe(semanticIdProductTwo);
     expect(suppliedProducts[2].getName()).toBe('Baked British Beans - Case, 6 x 40ml');
   });
 });
