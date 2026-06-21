@@ -4,10 +4,23 @@ import * as ids from '../controllers/shopify/ids.js';
 import config from '../../../config.js';
 import currencyMeasureFor from '../../../utils/currencyMeasureFor.js';
 
+const DFC_CONTEXT_W3ID = 'https://w3id.org/dfc/ontology/context/context_1.16.0.json';
+const DFC_CONTEXT_PRELOADED = 'https://www.datafoodconsortium.org/wp-content/plugins/wordpress-context-jsonld/context_1.16.0.jsonld';
+
+function normalizeContext(payload) {
+  if (typeof payload === 'string') {
+    return payload.replaceAll(DFC_CONTEXT_W3ID, DFC_CONTEXT_PRELOADED);
+  }
+  if (payload && typeof payload === 'object' && payload['@context'] === DFC_CONTEXT_W3ID) {
+    return { ...payload, '@context': DFC_CONTEXT_PRELOADED };
+  }
+  return payload;
+}
+
 export async function extractOrderLine(payload) {
   const connector = await loadConnectorWithResources();
 
-  const orderLines = (await connector.import(payload)).filter(
+  const orderLines = (await connector.import(normalizeContext(payload))).filter(
     (item) => item instanceof OrderLine
   );
 
@@ -29,7 +42,7 @@ export async function extractOrderAndLines(payload) {
 async function extract(payload, requireSalesSession) {
   const connector = await loadConnectorWithResources();
 
-  const deserialised = await connector.import(payload);
+  const deserialised = await connector.import(normalizeContext(payload));
 
   const orders = deserialised.filter((item) => item instanceof Order);
 
