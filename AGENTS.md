@@ -52,6 +52,14 @@
 - `connector.export(array)` takes an array; `connector.import(string)` is async (returns array).
 - `line.getOffer()` returns an Offer; `offer.getOfferedItem()` returns a SuppliedProduct.
 
+## Gotchas & pitfalls
+
+- **npm `1.0.0-beta.2` was silently republished** (same version tag, different tarball). Changed: `_:_:b` → `_:b` (single-colon blank nodes), `dfc-v:OrderState` → `dfc-v:Complete` for COMPLETED orders, `hasPart` as string (not array) for single lines, additional graph objects (`AsPlannedTransformation`, `CatalogItem`, `Offer`, `hasVariant`). Test expectations must match the current tarball, not what staging used to test against.
+- **Blank node IDs are sequential and test-order-dependent.** The `b1`–`b6` output from a standalone script becomes `b17`–`b22` when the same test runs in the full suite, because prior tests create objects that advance the counter. To update expectations, capture the **`Received:`** value from the actual failing test run — don't generate mock values in isolation.
+- **`package-lock.json` files** appear at root and `web/` after `yarn install` but are **not tracked** (`.gitignore` excludes them). Don't stage or commit them.
+- **Cherry-picking from staging:** Skip commits that revert the connector to an older ref (e.g. `jgaehring/connector-typescript#rc-alpha-12`). Regenerate lockfiles **on the target branch** with `yarn install` rather than trying to merge lockfile diffs.
+- **Engines field:** `web/package.json` `engines.node` on `main` may lag behind staging's `>=20.10.0`. After cherry-picks, verify it matches the actual runtime (Dockerfile uses Node 20).
+
 ## Migration branch
 
 `linkml-connector` branch has a full migration to `@fooddatacollaboration/linkml-connector` v2.0.0. The API is substantially different (field-based access, spread export, compact URIs). If working on that branch, see its version of this file for the new conventions.
