@@ -1,4 +1,5 @@
 import { OrderLine, Order, SaleSession } from '@datafoodconsortium/connector';
+import { normalizeContext } from '../../../connector/dfcContext.js';
 import loadConnectorWithResources from '../../../connector/index.js';
 import * as ids from '../controllers/shopify/ids.js';
 import config from '../../../config.js';
@@ -7,7 +8,7 @@ import currencyMeasureFor from '../../../utils/currencyMeasureFor.js';
 export async function extractOrderLine(payload) {
   const connector = await loadConnectorWithResources();
 
-  const orderLines = (await connector.import(payload)).filter(
+  const orderLines = (await connector.import(normalizeContext(payload))).filter(
     (item) => item instanceof OrderLine
   );
 
@@ -29,7 +30,7 @@ export async function extractOrderAndLines(payload) {
 async function extract(payload, requireSalesSession) {
   const connector = await loadConnectorWithResources();
 
-  const deserialised = await connector.import(payload);
+  const deserialised = await connector.import(normalizeContext(payload));
 
   const orders = deserialised.filter((item) => item instanceof Order);
 

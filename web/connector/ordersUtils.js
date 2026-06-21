@@ -2,6 +2,7 @@ import { OrderLine, Person } from '@datafoodconsortium/connector';
 import { getTargetStringFromSemanticId, throwError } from '../utils/index.js';
 
 import loadConnectorWithResources from './index.js';
+import { normalizeContext } from './dfcContext.js';
 
 async function getOrderLine(order) {
   try {
@@ -19,7 +20,7 @@ async function getOrderLine(order) {
 }
 
 async function getCustomer(connector, dfcCustomer) {
-  let importedCustomers = await connector.import(dfcCustomer);
+  let importedCustomers = await connector.import(normalizeContext(dfcCustomer));
   if (!Array.isArray(importedCustomers) || !importedCustomers.length) {
     throwError('Error importing Customers: no imports');
   }
@@ -35,7 +36,7 @@ async function getCustomer(connector, dfcCustomer) {
   };
 }
 async function getOrder(connector, dfcOrder) {
-  let importedOrders = await connector.import(dfcOrder);
+  let importedOrders = await connector.import(normalizeContext(dfcOrder));
   if (!Array.isArray(importedOrders) || !importedOrders.length) {
     throwError('Error importing Orders: no imports');
   }

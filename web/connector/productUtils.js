@@ -1,5 +1,4 @@
-import SuppliedProduct from '@datafoodconsortium/connector/lib/SuppliedProduct.js';
-import { SKOSConcept } from '@datafoodconsortium/connector';
+import { SuppliedProduct, SKOSConcept } from '@datafoodconsortium/connector';
 import config from '../config.js';
 import currencyMeasureFor from '../utils/currencyMeasureFor.js';
 import { throwError } from '../utils/index.js';
@@ -66,7 +65,7 @@ async function createVariantSuppliedProduct(
     );
     const offer = createOffer(connector, semanticBase, price);
     const inventoryQuantity =
-      variant.inventoryPolicy === 'CONTINUE' ? -1 : variant.inventoryQuantity;
+      variant.inventoryPolicy?.toLowerCase() === 'continue' ? -1 : variant.inventoryQuantity;
     const catalogItem = createCatalogItem(
       connector,
       semanticBase,

@@ -18,6 +18,20 @@ export const suppliedProductsWithMappedFdcVariants = [
       {
         id: '49889697366289',
         title: 'Retail bottle, 40ml',
+        price: '1.50',
+        sku: 'BBB-RET-40',
+        inventoryPolicy: 'deny',
+        inventoryQuantity: 100,
+        currencyCode: 'GBP',
+        taxable: true,
+        inventoryItem: {
+          measurement: {
+            weight: {
+              value: 0.05,
+              unit: 'kg'
+            }
+          }
+        },
         image: {
           id: '44001459765400',
           altText: 'Baked British Beans',
@@ -27,22 +41,65 @@ export const suppliedProductsWithMappedFdcVariants = [
       {
         id: '49889697399057',
         title: 'Case, 6 x 40ml',
+        price: '8.00',
+        sku: 'BBB-CASE-6x40',
+        inventoryPolicy: 'deny',
+        inventoryQuantity: 50,
+        currencyCode: 'GBP',
+        taxable: true,
+        inventoryItem: {
+          measurement: {
+            weight: {
+              value: 0.3,
+              unit: 'kg'
+            }
+          }
+        },
         image: null
       },
       {
         id: '49889697431825',
         title: 'Retail bottle, 100ml',
+        price: '3.00',
+        sku: 'BBB-RET-100',
+        inventoryPolicy: 'deny',
+        inventoryQuantity: 75,
+        currencyCode: 'GBP',
+        taxable: true,
+        inventoryItem: {
+          measurement: {
+            weight: {
+              value: 0.12,
+              unit: 'kg'
+            }
+          }
+        },
         image: null
       },
       {
         id: '49889697464593',
         title: 'Small case, 6 x 100ml',
+        price: '15.00',
+        sku: 'BBB-CASE-6x100',
+        inventoryPolicy: 'deny',
+        inventoryQuantity: 30,
+        currencyCode: 'GBP',
+        taxable: true,
+        inventoryItem: {
+          measurement: {
+            weight: {
+              value: 0.75,
+              unit: 'kg'
+            }
+          }
+        },
         image: null
       }
     ],
     fdcVariants: [
       {
         id: 1,
+        enabled: true,
         wholesaleVariantId: '49889697399057',
         retailVariantId: '49889697366289',
         productId: '9932577800465',
@@ -58,12 +115,14 @@ export const suppliedProductsWithUnmappedFdcVariants = [
     fdcVariants: [
       {
         id: 1,
+        enabled: true,
         retailVariantId: '49889697366289',
         productId: '9932577800465',
       },
   
       {
         id: 2,
+        enabled: true,
         retailVariantId: '49889697399057',
         productId: '9932577800465',
       }
@@ -127,6 +186,15 @@ export const createSuppliedProductsInput = [
         inventoryQuantity: -224,
         oldInventoryQuantity: -224,
         requires_shipping: true,
+        currencyCode: 'GBP',
+        inventoryItem: {
+          measurement: {
+            weight: {
+              value: 0.5,
+              unit: 'kg'
+            }
+          }
+        },
         admin_graphql_api_id: 'gid://shopify/ProductVariant/43305180201112'
       }
     ],
@@ -183,4 +251,4 @@ export const createSuppliedProductsInput = [
   }
 ];
 
-export const exportSuppliedProductsJSONLD = `{\"@context\":\"https://www.datafoodconsortium.org\",\"@graph\":[{\"@id\":\"_:b17\",\"@type\":\"dfc-b:QuantitativeValue\",\"dfc-b:hasUnit\":\"dfc-m:Kilogram\"},{\"@id\":\"_:b18\",\"@type\":\"dfc-b:Price\",\"dfc-b:VATrate\":\"0\",\"dfc-b:hasUnit\":\"dfc-m:Euro\"},{\"@id\":\"_:b19\",\"@type\":\"dfc-b:QuantitativeValue\",\"dfc-b:hasUnit\":\"dfc-m:Kilogram\"},{\"@id\":\"_:b20\",\"@type\":\"dfc-b:Price\",\"dfc-b:VATrate\":\"0\",\"dfc-b:hasUnit\":\"dfc-m:Euro\"},{\"@id\":\"_:b21\",\"@type\":\"dfc-b:QuantitativeValue\",\"dfc-b:hasUnit\":\"dfc-m:Piece\",\"dfc-b:value\":\"6\"},{\"@id\":\"_:b22\",\"@type\":\"dfc-b:QuantitativeValue\",\"dfc-b:hasUnit\":\"dfc-m:Piece\",\"dfc-b:value\":\"1\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289\",\"@type\":\"dfc-b:SuppliedProduct\",\"dfc-b:description\":\"Testing this product HTML\",\"dfc-b:hasQuantity\":\"_:b17\",\"dfc-b:image\":\"https://cdn.shopify.com/s/files/1/0587/9735/9256/products/Cameilna-Seeds-1800x1200_8c00a108-d8f7-4920-9bac-758a2c6a8b56.jpg?v=1706882031\",\"dfc-b:name\":\"Baked British Beans - Retail bottle, 40ml\",\"dfc-b:referencedBy\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/CatalogItem\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedConsumptionFlow\",\"@type\":\"dfc-b:AsPlannedConsumptionFlow\",\"dfc-b:consumes\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289\",\"dfc-b:hasQuantity\":\"_:b21\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedProductionFlow\",\"@type\":\"dfc-b:AsPlannedProductionFlow\",\"dfc-b:hasQuantity\":\"_:b22\",\"dfc-b:produces\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedTransformation\",\"@type\":\"dfc-b:AsPlannedTransformation\",\"dfc-b:hasIncome\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedConsumptionFlow\",\"dfc-b:hasOutcome\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedProductionFlow\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/CatalogItem\",\"@type\":\"dfc-b:CatalogItem\",\"dfc-b:offeredThrough\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/Offer\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/Offer\",\"@type\":\"dfc-b:Offer\",\"dfc-b:hasPrice\":{\"@id\":\"_:b18\"}},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057\",\"@type\":\"dfc-b:SuppliedProduct\",\"dfc-b:description\":\"Testing this product HTML\",\"dfc-b:hasQuantity\":\"_:b19\",\"dfc-b:image\":\"https://cdn.shopify.com/s/files/1/0587/9735/9256/products/Cameilna-Seeds-1800x1200_8c00a108-d8f7-4920-9bac-758a2c6a8b56.jpg?v=1706882031\",\"dfc-b:name\":\"Baked British Beans - Case, 6 x 40ml\",\"dfc-b:referencedBy\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057/CatalogItem\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057/CatalogItem\",\"@type\":\"dfc-b:CatalogItem\",\"dfc-b:offeredThrough\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057/Offer\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057/Offer\",\"@type\":\"dfc-b:Offer\",\"dfc-b:hasPrice\":{\"@id\":\"_:b20\"}}]}`;
+export const exportSuppliedProductsJSONLD = `{\"@context\":\"https://w3id.org/dfc/ontology/context/context_1.16.0.json\",\"@graph\":[{\"@id\":\"_:b17\",\"@type\":\"dfc-b:QuantitativeValue\",\"dfc-b:hasUnit\":\"dfc-m:Kilogram\",\"dfc-b:value\":\"0.05\"},{\"@id\":\"_:b18\",\"@type\":\"dfc-b:Price\",\"dfc-b:VATrate\":\"1\",\"dfc-b:hasUnit\":\"dfc-m:PoundSterling\",\"dfc-b:value\":\"1.50\"},{\"@id\":\"_:b19\",\"@type\":\"dfc-b:QuantitativeValue\",\"dfc-b:hasUnit\":\"dfc-m:Kilogram\",\"dfc-b:value\":\"0.3\"},{\"@id\":\"_:b20\",\"@type\":\"dfc-b:Price\",\"dfc-b:VATrate\":\"1\",\"dfc-b:hasUnit\":\"dfc-m:PoundSterling\",\"dfc-b:value\":\"8.00\"},{\"@id\":\"_:b21\",\"@type\":\"dfc-b:QuantitativeValue\",\"dfc-b:hasUnit\":\"dfc-m:Piece\",\"dfc-b:value\":\"6\"},{\"@id\":\"_:b22\",\"@type\":\"dfc-b:QuantitativeValue\",\"dfc-b:hasUnit\":\"dfc-m:Piece\",\"dfc-b:value\":\"1\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289\",\"@type\":\"dfc-b:SuppliedProduct\",\"dfc-b:description\":\"Testing this product HTML\",\"dfc-b:hasQuantity\":\"_:b17\",\"dfc-b:image\":\"https://cdn.shopify.com/s/files/1/0587/9735/9256/products/Cameilna-Seeds-1800x1200_8c00a108-d8f7-4920-9bac-758a2c6a8b56.jpg?v=1706882031\",\"dfc-b:isVariantOf\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/9932577997073\",\"dfc-b:name\":\"Baked British Beans - Retail bottle, 40ml\",\"dfc-b:referencedBy\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/CatalogItem\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedConsumptionFlow\",\"@type\":\"dfc-b:AsPlannedConsumptionFlow\",\"dfc-b:consumes\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289\",\"dfc-b:hasQuantity\":\"_:b21\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedProductionFlow\",\"@type\":\"dfc-b:AsPlannedProductionFlow\",\"dfc-b:hasQuantity\":\"_:b22\",\"dfc-b:produces\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedTransformation\",\"@type\":\"dfc-b:AsPlannedTransformation\",\"dfc-b:hasInput\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedConsumptionFlow\",\"dfc-b:hasOutput\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/AsPlannedProductionFlow\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/CatalogItem\",\"@type\":\"dfc-b:CatalogItem\",\"dfc-b:offeredThrough\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/Offer\",\"dfc-b:sku\":\"BBB-RET-40\",\"dfc-b:stockLimitation\":\"100\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697366289/Offer\",\"@type\":\"dfc-b:Offer\",\"dfc-b:hasPrice\":\"_:b18\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057\",\"@type\":\"dfc-b:SuppliedProduct\",\"dfc-b:description\":\"Testing this product HTML\",\"dfc-b:hasQuantity\":\"_:b19\",\"dfc-b:image\":\"https://cdn.shopify.com/s/files/1/0587/9735/9256/products/Cameilna-Seeds-1800x1200_8c00a108-d8f7-4920-9bac-758a2c6a8b56.jpg?v=1706882031\",\"dfc-b:isVariantOf\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/9932577997073\",\"dfc-b:name\":\"Baked British Beans - Case, 6 x 40ml\",\"dfc-b:referencedBy\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057/CatalogItem\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057/CatalogItem\",\"@type\":\"dfc-b:CatalogItem\",\"dfc-b:offeredThrough\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057/Offer\",\"dfc-b:sku\":\"BBB-CASE-6x40\",\"dfc-b:stockLimitation\":\"50\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057/Offer\",\"@type\":\"dfc-b:Offer\",\"dfc-b:hasPrice\":\"_:b20\"},{\"@id\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/9932577997073\",\"@type\":\"dfc-b:SuppliedProduct\",\"dfc-b:description\":\"Testing this product HTML\",\"dfc-b:hasVariant\":\"http://localhost:3629/api/dfc/Enterprises/fdc-producer/SuppliedProducts/49889697399057\",\"dfc-b:name\":\"Baked British Beans\"}]}`;
