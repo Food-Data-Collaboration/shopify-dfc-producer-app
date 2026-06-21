@@ -65,7 +65,7 @@ async function createVariantSuppliedProduct(
     );
     const offer = createOffer(connector, semanticBase, price);
     const inventoryQuantity =
-      variant.inventoryPolicy === 'continue' ? -1 : variant.inventoryQuantity;
+      variant.inventoryPolicy?.toLowerCase() === 'continue' ? -1 : variant.inventoryQuantity;
     const catalogItem = createCatalogItem(
       connector,
       semanticBase,
