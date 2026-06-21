@@ -3,9 +3,8 @@ import facets from './thesaurus/facets.json' with { type: 'json' };
 import measures from './thesaurus/measures.json' with { type: 'json' };
 import productTypes from './thesaurus/productTypes.json' with { type: 'json' };
 import vocabulary from './thesaurus/vocabulary.json' with { type: 'json' };
+import { DFC_CONTEXT_W3ID } from './dfcContext.js';
 import { throwError } from '../utils/index.js';
-
-const DFC_CONTEXT_W3ID = "https://w3id.org/dfc/ontology/context/context_1.16.0.json";
 
 let _connector;
 let connected = false;

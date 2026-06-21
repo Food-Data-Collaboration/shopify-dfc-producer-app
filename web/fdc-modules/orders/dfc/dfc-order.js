@@ -1,21 +1,9 @@
 import { OrderLine, Order, SaleSession } from '@datafoodconsortium/connector';
+import { normalizeContext } from '../../../connector/dfcContext.js';
 import loadConnectorWithResources from '../../../connector/index.js';
 import * as ids from '../controllers/shopify/ids.js';
 import config from '../../../config.js';
 import currencyMeasureFor from '../../../utils/currencyMeasureFor.js';
-
-const DFC_CONTEXT_W3ID = 'https://w3id.org/dfc/ontology/context/context_1.16.0.json';
-const DFC_CONTEXT_PRELOADED = 'https://www.datafoodconsortium.org/wp-content/plugins/wordpress-context-jsonld/context_1.16.0.jsonld';
-
-function normalizeContext(payload) {
-  if (typeof payload === 'string') {
-    return payload.replaceAll(DFC_CONTEXT_W3ID, DFC_CONTEXT_PRELOADED);
-  }
-  if (payload && typeof payload === 'object' && payload['@context'] === DFC_CONTEXT_W3ID) {
-    return { ...payload, '@context': DFC_CONTEXT_PRELOADED };
-  }
-  return payload;
-}
 
 export async function extractOrderLine(payload) {
   const connector = await loadConnectorWithResources();
