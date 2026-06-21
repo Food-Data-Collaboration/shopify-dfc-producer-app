@@ -5,6 +5,8 @@ import productTypes from './thesaurus/productTypes.json' with { type: 'json' };
 import vocabulary from './thesaurus/vocabulary.json' with { type: 'json' };
 import { throwError } from '../utils/index.js';
 
+const DFC_CONTEXT_W3ID = "https://w3id.org/dfc/ontology/context/context_1.16.0.json";
+
 let _connector;
 let connected = false;
 
@@ -19,6 +21,8 @@ export default async () => {
         connector.loadVocabulary(JSON.stringify(vocabulary))
       ];
       await Promise.all(resourcePromisesArray);
+
+      connector.exporter.outputContext = DFC_CONTEXT_W3ID;
 
       connected = true;
       _connector = connector;
