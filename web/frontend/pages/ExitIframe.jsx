@@ -6,14 +6,19 @@ export default function ExitIframe() {
   const { search } = useLocation();
 
   useEffect(() => {
-    if (!!search) {
-      const params = new URLSearchParams(search);
-      const redirectUri = params.get("redirectUri");
-      const url = new URL(decodeURIComponent(redirectUri));
+    if (!search) return;
 
-      if (url.hostname === location.hostname) {
-        window.location.href = decodeURIComponent(redirectUri);
+    const params = new URLSearchParams(search);
+    const redirectUri = params.get("redirectUri");
+    if (!redirectUri) return;
+
+    try {
+      const url = new URL(decodeURIComponent(redirectUri));
+      if (url.hostname === window.location.hostname) {
+        window.location.href = url.toString();
       }
+    } catch {
+      // Invalid redirect URI — nothing to do
     }
   }, [search]);
 
