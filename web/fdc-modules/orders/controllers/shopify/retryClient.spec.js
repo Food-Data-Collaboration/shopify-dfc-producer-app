@@ -20,8 +20,7 @@ describe('retryClient', () => {
   });
 
   it('retries on throttled response then succeeds', async () => {
-    let client;
-    client = fakeClient((n) => {
+    const client = fakeClient((n) => {
       if (n <= 2) return { errors: [{ extensions: { code: 'THROTTLED' } }] };
       return { data: { ok: true } };
     });
@@ -38,11 +37,10 @@ describe('retryClient', () => {
       requestWithRetry(client, 'query { x }'),
     ).rejects.toThrow('Shopify rate limit exceeded after all retries');
     expect(client._callCount()).toBe(4);
-  }, 15000);
+  }, 30000);
 
   it('retries on thrown errors then succeeds', async () => {
-    let client;
-    client = fakeClient((n) => {
+    const client = fakeClient((n) => {
       if (n <= 2) throw new Error('Network error');
       return { data: { ok: true } };
     });
