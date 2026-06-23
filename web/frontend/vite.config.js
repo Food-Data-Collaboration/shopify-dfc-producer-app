@@ -46,22 +46,12 @@ if (host === 'localhost') {
   };
 }
 
-const appBridgeCorePath = join(root, 'node_modules/@shopify/app-bridge-core');
-
 export default defineConfig({
   root,
   plugins: [react()],
   define: {
-    'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY)
-  },
-  resolve: {
-    preserveSymlinks: true,
-    alias: [
-      {
-        find: /^@shopify\/app-bridge-core(\/.*)?$/,
-        replacement: `${appBridgeCorePath}$1`
-      }
-    ]
+    'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY),
+    'import.meta.env.VITE_SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY)
   },
   server: {
     host: 'localhost',
