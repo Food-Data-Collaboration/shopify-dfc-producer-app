@@ -1,11 +1,9 @@
 import { BrowserRouter } from 'react-router-dom';
-import { NavigationMenu, Loading } from '@shopify/app-bridge-react';
-import { Card, SkeletonBodyText } from '@shopify/polaris';
+import { Card, SkeletonBodyText, Spinner } from '@shopify/polaris';
 import { useEffect, useState } from 'react';
 import Routes from './Routes';
 
 import {
-  AppBridgeProvider,
   QueryProvider,
   PolarisProvider
 } from './components';
@@ -13,14 +11,11 @@ import { useAppQuery } from './hooks';
 import PostInstallationSetup from './pages/PostInstallationSetup';
 
 export default function App() {
-  // Any .tsx or .jsx files in /pages will become a route
-  // See documentation for <Routes /> for more info
   const pages = import.meta.globEager('./pages/**/!(*.test.[jt]sx)*.([jt]sx)');
   const [isSetupCompleted, setIsSetupCompleted] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [ordersFeatureEnabled, setOrdersFeatureEnabled] = useState(false);
 
-  // A wrapper component to check setup status
   function SetupCheck() {
     const { data: shopData, isLoading: shopLoading } = useAppQuery({
       url: '/api/shop/details'
@@ -37,7 +32,7 @@ export default function App() {
     if (isLoading || shopLoading) {
       return (
         <Card sectioned>
-          <Loading />
+          <Spinner />
           <SkeletonBodyText />
         </Card>
       );
@@ -49,18 +44,11 @@ export default function App() {
 
     return (
       <>
-        <NavigationMenu
-          navigationLinks={
-            ordersFeatureEnabled
-              ? [
-                {
-                  label: 'Hub Users',
-                  destination: '/hubUsers'
-                }
-              ]
-              : []
-          }
-        />
+        <s-app-nav>
+          {ordersFeatureEnabled && (
+            <a href="/hubUsers">Hub Users</a>
+          )}
+        </s-app-nav>
         <Routes pages={pages} />
       </>
     );
@@ -69,11 +57,9 @@ export default function App() {
   return (
     <PolarisProvider>
       <BrowserRouter>
-        <AppBridgeProvider>
-          <QueryProvider>
-            <SetupCheck />
-          </QueryProvider>
-        </AppBridgeProvider>
+        <QueryProvider>
+          <SetupCheck />
+        </QueryProvider>
       </BrowserRouter>
     </PolarisProvider>
   );
