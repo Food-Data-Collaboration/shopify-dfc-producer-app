@@ -59,6 +59,7 @@
 - **`package-lock.json` files** appear at root and `web/` after `yarn install` but are **not tracked** (`.gitignore` excludes them). Don't stage or commit them.
 - **Cherry-picking from staging:** Skip commits that revert the connector to an older ref (e.g. `jgaehring/connector-typescript#rc-alpha-12`). Regenerate lockfiles **on the target branch** with `yarn install` rather than trying to merge lockfile diffs.
 - **Engines field:** `web/package.json` `engines.node` on `main` may lag behind staging's `>=20.10.0`. After cherry-picks, verify it matches the actual runtime (Dockerfile uses Node 20).
+- **Rate limit retry:** `web/fdc-modules/orders/controllers/shopify/retryClient.js` wraps all Shopify GraphQL calls in `orders.js` with exponential backoff (3 retries, 1s→2s→4s + jitter). Detects `THROTTLED` in error extensions and catches thrown errors. If adding a new Shopify API call elsewhere, use `requestWithRetry(client, query, options)` instead of `client.request()`.
 
 ## Migration branch
 
