@@ -8,7 +8,7 @@ function checkHeadersForReauthorization(headers) {
       ? `https://${window.location.host}${authUrlHeader}`
       : authUrlHeader;
 
-    window.open(url);
+    window.top.location.href = url;
   }
 }
 

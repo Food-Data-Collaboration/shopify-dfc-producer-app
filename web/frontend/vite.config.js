@@ -49,9 +49,9 @@ if (host === 'localhost') {
 export default defineConfig({
   root,
   plugins: [react()],
+  envPrefix: ['VITE_', 'SHOPIFY_'],
   define: {
     'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY),
-    'import.meta.env.VITE_SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY)
   },
   server: {
     host: 'localhost',
