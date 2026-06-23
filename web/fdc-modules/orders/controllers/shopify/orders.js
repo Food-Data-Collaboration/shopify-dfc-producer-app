@@ -1,10 +1,11 @@
 import * as ids from './ids.js'
+import { requestWithRetry } from './retryClient.js'
 
 const PAY_ON_RECEIPT = "gid://shopify/PaymentTermsTemplate/1";
 
 export async function findOrder(client, orderId, { first, last, after, before }) {
     const firstToUse = first ? first : last ? null : 250;
-    const response = await client.request(`query MyQuery($id: ID!, $first: Int, $last: Int, $after: String, $before: String) {
+    const response = await requestWithRetry(client,`query MyQuery($id: ID!, $first: Int, $last: Int, $after: String, $before: String) {
         draftOrder(id: $id) {
             id
             status
@@ -108,7 +109,7 @@ export async function findOrders(client, customerId, { first, last, after, befor
 
     const firstToUse = first ? first : last ? null : 250;
 
-    const response = await client.request(query, {
+    const response = await requestWithRetry(client,query, {
         variables: { first: firstToUse, last, after, before }
     });
 
@@ -163,7 +164,7 @@ export async function createShopifyOrder(client, customerId, customerEmail, rese
         }
       }`;
 
-    const response = await client.request(query, {
+    const response = await requestWithRetry(client,query, {
         variables: {
             "input": {
                 "purchasingEntity": {
@@ -236,7 +237,7 @@ export async function updateOrder(client, orderId, reservationDate, lines) {
         }
       }`;
 
-    const response = await client.request(query, {
+    const response = await requestWithRetry(client,query, {
         variables: {
             "id": ids.draftOrder(orderId),
             "input": {
@@ -304,7 +305,7 @@ export async function completeDraftOrder(client, orderId) {
       }`;
 
 
-    const response = await client.request(query, {
+    const response = await requestWithRetry(client,query, {
         variables: {
             "id": ids.draftOrder(orderId)
         },
