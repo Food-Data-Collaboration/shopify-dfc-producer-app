@@ -1,6 +1,5 @@
 import { Button, Stack, TextField } from '@mui/material';
-import { Loading } from '@shopify/app-bridge-react';
-import { Card, SkeletonBodyText } from '@shopify/polaris';
+import { Card, SkeletonBodyText, Spinner } from '@shopify/polaris';
 import React, { useState } from 'react';
 import ProductCard from '../components/ProductCard';
 import { useAppQuery } from '../hooks';
@@ -28,7 +27,7 @@ export default function HomePage() {
   if (isLoading) {
     return (
       <Card sectioned>
-        <Loading />
+        <Spinner />
         <SkeletonBodyText />
       </Card>
     );
