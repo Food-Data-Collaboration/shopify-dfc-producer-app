@@ -11,7 +11,7 @@ import { useAppQuery } from './hooks';
 import PostInstallationSetup from './pages/PostInstallationSetup';
 
 export default function App() {
-  const pages = import.meta.globEager('./pages/**/!(*.test.[jt]sx)*.([jt]sx)');
+  const pages = import.meta.glob('./pages/**/!(*.test.[jt]sx)*.([jt]sx)', { eager: true });
   const [isSetupCompleted, setIsSetupCompleted] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [ordersFeatureEnabled, setOrdersFeatureEnabled] = useState(false);
