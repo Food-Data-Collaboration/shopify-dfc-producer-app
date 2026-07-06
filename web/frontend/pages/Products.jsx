@@ -1,4 +1,3 @@
-import { Loading } from '@shopify/app-bridge-react';
 import {
   Card,
   EmptyState,
@@ -6,6 +5,7 @@ import {
   Layout,
   Page,
   SkeletonBodyText,
+  Spinner,
   Tabs,
   TextField,
   Toast,
@@ -136,7 +136,7 @@ export default function ProductsPage() {
     return (
       <Page title="Products">
         <Card sectioned>
-          <Loading />
+          <Spinner />
           <SkeletonBodyText />
         </Card>
       </Page>

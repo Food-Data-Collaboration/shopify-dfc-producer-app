@@ -3,10 +3,10 @@ import {
   Card,
   Layout,
   Page,
+  Spinner,
   TextContainer
 } from '@shopify/polaris';
 import { useNavigate } from 'react-router-dom';
-import { Loading } from '@shopify/app-bridge-react';
 import { useShopDetails } from '../hooks';
 
 export default function Home() {
@@ -16,7 +16,7 @@ export default function Home() {
     hasPermissions, isLoading
   } = useShopDetails();
 
-  return isLoading ? <Loading /> : (
+  return isLoading ? <Spinner /> : (
     <Page>
       <Layout>
         <Layout.Section>

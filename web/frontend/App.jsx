@@ -54,7 +54,7 @@ function SetupCheck({ pages }) {
 }
 
 export default function App() {
-  const pages = import.meta.globEager('./pages/**/!(*.test.[jt]sx)*.([jt]sx)');
+  const pages = import.meta.glob('./pages/**/!(*.test.[jt]sx)*.([jt]sx)', { eager: true });
 
   return (
     <PolarisProvider>
