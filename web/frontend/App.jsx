@@ -31,7 +31,7 @@ function SetupCheck({ pages }) {
   if (isLoading) {
     return (
       <Card sectioned>
-        <Spinner />
+        <Spinner accessibilityLabel="Loading" />
         <SkeletonBodyText />
       </Card>
     );
