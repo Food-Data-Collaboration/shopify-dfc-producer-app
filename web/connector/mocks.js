@@ -119,7 +119,7 @@ export const suppliedProductsWithUnmappedFdcVariants = [
         retailVariantId: '49889697366289',
         productId: '9932577800465',
       },
-  
+
       {
         id: 2,
         enabled: true,
