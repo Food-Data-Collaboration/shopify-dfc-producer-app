@@ -16,7 +16,7 @@ export default function Home() {
     hasPermissions, isLoading
   } = useShopDetails();
 
-  return isLoading ? <Spinner /> : (
+  return isLoading ? <Spinner accessibilityLabel="Loading" /> : (
     <Page>
       <Layout>
         <Layout.Section>
