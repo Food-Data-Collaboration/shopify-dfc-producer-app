@@ -28,8 +28,13 @@ export default function PlatformAuthorisation({ shopName }) {
 
   useEffect(() => {
     async function getToken() {
-      const token = await app.getSessionToken();
-      setAuthToken(token);
+      if (!app) return;
+      try {
+        const token = await app.getSessionToken();
+        setAuthToken(token);
+      } catch (e) {
+        console.error('Failed to get session token:', e);
+      }
     }
     getToken();
   }, [app]);
