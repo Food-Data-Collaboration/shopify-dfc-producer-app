@@ -136,7 +136,7 @@ export default function ProductsPage() {
     return (
       <Page title="Products">
         <Card sectioned>
-          <Spinner />
+          <Spinner accessibilityLabel="Loading" />
           <SkeletonBodyText />
         </Card>
       </Page>
