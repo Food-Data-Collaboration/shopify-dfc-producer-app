@@ -15,12 +15,12 @@ export default function ExitIframe() {
     try {
       const url = new URL(decodeURIComponent(redirectUri));
       if (url.hostname === window.location.hostname) {
-        window.location.href = url.toString();
+        window.top.location.href = url.toString();
       }
     } catch {
       // Invalid redirect URI — nothing to do
     }
   }, [search]);
 
-  return <Spinner />;
+  return <Spinner accessibilityLabel="Redirecting" />;
 }
