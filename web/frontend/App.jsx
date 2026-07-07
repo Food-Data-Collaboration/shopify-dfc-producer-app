@@ -9,7 +9,6 @@ import {
 } from './components';
 import { useAppQuery } from './hooks';
 import PostInstallationSetup from './pages/PostInstallationSetup';
-
 export default function App() {
   const pages = import.meta.glob('./pages/**/!(*.test.[jt]sx)*.([jt]sx)', { eager: true });
   const [isSetupCompleted, setIsSetupCompleted] = useState(null);
@@ -32,7 +31,7 @@ export default function App() {
     if (isLoading || shopLoading) {
       return (
         <Card sectioned>
-          <Spinner />
+          <Spinner accessibilityLabel="Loading" />
           <SkeletonBodyText />
         </Card>
       );
