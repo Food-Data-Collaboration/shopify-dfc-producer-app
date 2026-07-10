@@ -48,8 +48,19 @@ if (host === 'localhost') {
 
 export default defineConfig({
   root,
-  plugins: [react()],
-  envPrefix: ['VITE_', 'SHOPIFY_'],
+  plugins: [
+    react(),
+    {
+      name: 'inject-shopify-api-key',
+      transformIndexHtml(html) {
+        return html.replace(
+          '__SHOPIFY_API_KEY__',
+          process.env.SHOPIFY_API_KEY || ''
+        );
+      },
+    },
+  ],
+  envPrefix: ['VITE_'],
   define: {
     'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY),
   },
