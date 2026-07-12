@@ -1,10 +1,8 @@
-import { Loading, NavigationMenu } from '@shopify/app-bridge-react';
-import { Card, SkeletonBodyText } from '@shopify/polaris';
+import { Card, SkeletonBodyText, Spinner } from '@shopify/polaris';
 import { BrowserRouter } from 'react-router-dom';
 import Routes from './Routes';
 
 import {
-  AppBridgeProvider,
   PolarisProvider,
   QueryProvider
 } from './components';
@@ -33,7 +31,7 @@ function SetupCheck({ pages }) {
   if (isLoading) {
     return (
       <Card sectioned>
-        <Loading />
+        <Spinner accessibilityLabel="Loading" />
         <SkeletonBodyText />
       </Card>
     );
@@ -45,25 +43,32 @@ function SetupCheck({ pages }) {
 
   return (
     <>
-      <NavigationMenu navigationLinks={getNavigationLinks(ordersFeatureEnabled, hasPermissions)} />
+      <s-app-nav>
+        {getNavigationLinks(ordersFeatureEnabled, hasPermissions).map((link) => {
+          const href = link.destination.includes('?')
+            ? link.destination
+            : `${link.destination}${window.location.search}`;
+          return (
+            <a key={link.destination} href={href}>
+              {link.label}
+            </a>
+          );
+        })}
+      </s-app-nav>
       <Routes pages={pages} shopName={shopName} hasPermissions={hasPermissions} />
     </>
   );
 }
 
 export default function App() {
-  // Any .tsx or .jsx files in /pages will become a route
-  // See documentation for <Routes /> for more info
-  const pages = import.meta.globEager('./pages/**/!(*.test.[jt]sx)*.([jt]sx)');
+  const pages = import.meta.glob('./pages/**/!(*.test.[jt]sx)*.([jt]sx)', { eager: true });
 
   return (
     <PolarisProvider>
       <BrowserRouter>
-        <AppBridgeProvider>
-          <QueryProvider>
-            <SetupCheck pages={pages} />
-          </QueryProvider>
-        </AppBridgeProvider>
+        <QueryProvider>
+          <SetupCheck pages={pages} />
+        </QueryProvider>
       </BrowserRouter>
     </PolarisProvider>
   );

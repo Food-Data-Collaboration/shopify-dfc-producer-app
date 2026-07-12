@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useAppBridge } from '@shopify/app-bridge-react';
-import { getSessionToken } from '@shopify/app-bridge-utils';
 
 function createScript(url, onload) {
   const script = document.createElement('script');
@@ -29,8 +28,13 @@ export default function PlatformAuthorisation({ shopName }) {
 
   useEffect(() => {
     async function getToken() {
-      const token = await getSessionToken(app);
-      setAuthToken(token);
+      if (!app) return;
+      try {
+        const token = await app.getSessionToken();
+        setAuthToken(token);
+      } catch (e) {
+        console.error('Failed to get session token:', e);
+      }
     }
     getToken();
   }, [app]);
