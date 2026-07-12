@@ -44,9 +44,16 @@ function SetupCheck({ pages }) {
   return (
     <>
       <s-app-nav>
-        {getNavigationLinks(ordersFeatureEnabled, hasPermissions).map((link) => (
-          <a key={link.destination} href={link.destination}>{link.label}</a>
-        ))}
+        {getNavigationLinks(ordersFeatureEnabled, hasPermissions).map((link) => {
+          const href = link.destination.includes('?')
+            ? link.destination
+            : `${link.destination}${window.location.search}`;
+          return (
+            <a key={link.destination} href={href}>
+              {link.label}
+            </a>
+          );
+        })}
       </s-app-nav>
       <Routes pages={pages} shopName={shopName} hasPermissions={hasPermissions} />
     </>
