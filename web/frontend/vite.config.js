@@ -60,6 +60,7 @@ export default defineConfig({
       },
     },
   ],
+  // Intentionally only expose VITE_* variables to client code; SHOPIFY_* may include secrets.
   envPrefix: ['VITE_'],
   define: {
     'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY),
