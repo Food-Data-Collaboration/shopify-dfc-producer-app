@@ -46,22 +46,23 @@ if (host === 'localhost') {
   };
 }
 
-const appBridgeCorePath = join(root, 'node_modules/@shopify/app-bridge-core');
-
 export default defineConfig({
   root,
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'inject-shopify-api-key',
+      transformIndexHtml(html) {
+        return html.replace(
+          '__SHOPIFY_API_KEY__',
+          process.env.SHOPIFY_API_KEY || ''
+        );
+      },
+    },
+  ],
+  envPrefix: ['VITE_'],
   define: {
-    'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY)
-  },
-  resolve: {
-    preserveSymlinks: true,
-    alias: [
-      {
-        find: /^@shopify\/app-bridge-core(\/.*)?$/,
-        replacement: `${appBridgeCorePath}$1`
-      }
-    ]
+    'process.env.SHOPIFY_API_KEY': JSON.stringify(process.env.SHOPIFY_API_KEY),
   },
   server: {
     host: 'localhost',
