@@ -12,7 +12,9 @@
     "deploy": "shopify app deploy",
     "test": "jest --runInBand --detectOpenHandles --forceExit web/*",
     "acceptance-test": "jest --runInBand --detectOpenHandles --forceExit acceptance-tests/",
-    "build:db": "node ./web/database/build.js"
+    "build:db": "node ./web/database/build.js",
+    "test:e2e": "playwright test",
+    "test:e2e:build": "export SHOPIFY_API_KEY=test-mock-key && yarn --cwd web/frontend build && NODE_ENV=production MOCK_BRIDGE=1 playwright test"
   },
   "dependencies": {
     "@datafoodconsortium/connector": "1.0.0-beta.2",
@@ -40,6 +42,8 @@
     "@babel/plugin-transform-modules-commonjs": "^7.22.5",
     "@babel/preset-env": "^7.22.5",
     "@babel/preset-typescript": "^7.22.5",
+    "@getverdict/mock-bridge": "^1.3.0",
+    "@playwright/test": "^1.61.1",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.26.2",
     "cross-env": "^7.0.3",
     "eslint": "^7.32.0 || ^8.2.0",
