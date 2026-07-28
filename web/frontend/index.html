@@ -4,7 +4,41 @@
     <meta charset="UTF-8" />
 
     <meta name="shopify-api-key" content="__SHOPIFY_API_KEY__" />
-    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+
+    <script>
+      (function () {
+        var urlParams = new URLSearchParams(window.location.search);
+        var isEmbedded = urlParams.get('embedded') === '1';
+        var host = urlParams.get('host');
+        var isMock = false;
+
+        if (isEmbedded && host) {
+          try {
+            var decodedHost = atob(host);
+            if (decodedHost.includes('localhost') || decodedHost.includes('mock') || window.location.hostname === 'localhost') {
+              isMock = true;
+            }
+          } catch (e) {}
+        }
+
+        var script = document.createElement('script');
+        script.src = isMock
+          ? 'http://localhost:3080/app-bridge.js'
+          : 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
+        script.async = false;
+        script.defer = false;
+        script.onerror = function () {
+          if (isMock) {
+            var fb = document.createElement('script');
+            fb.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
+            fb.async = false;
+            fb.defer = false;
+            document.head.appendChild(fb);
+          }
+        };
+        document.head.insertBefore(script, document.head.firstChild);
+      })();
+    </script>
 
     <!-- Ensures that the UI is properly scaled in the Shopify Mobile app -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
