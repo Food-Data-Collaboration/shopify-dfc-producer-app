@@ -1,6 +1,4 @@
 const { MockShopifyAdminServer } = require('@getverdict/mock-bridge');
-const path = require('path');
-const { execSync } = require('child_process');
 
 module.exports = async () => {
   const apiKey = process.env.SHOPIFY_API_KEY || 'test-mock-key';
