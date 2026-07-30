@@ -17,6 +17,8 @@ jobs:
       - run: yarn --cwd web install --frozen-lockfile
       - run: yarn --cwd web/frontend install --frozen-lockfile
       - run: yarn --cwd web/frontend build
+        env:
+          SHOPIFY_API_KEY: ${{ secrets.SHOPIFY_API_KEY }}
       - run: npx playwright install chromium --with-deps
       - run: NODE_ENV=production MOCK_BRIDGE=1 npx playwright test
         env:
