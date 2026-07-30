@@ -14,7 +14,7 @@
     "acceptance-test": "jest --runInBand --detectOpenHandles --forceExit acceptance-tests/",
     "build:db": "node ./web/database/build.js",
     "test:e2e": "playwright test",
-    "test:e2e:build": "export SHOPIFY_API_KEY=test-mock-key && yarn --cwd web/frontend build && NODE_ENV=production MOCK_BRIDGE=1 playwright test"
+    "test:e2e:build": "cross-env SHOPIFY_API_KEY=test-mock-key yarn --cwd web/frontend build && NODE_ENV=production MOCK_BRIDGE=1 playwright test"
   },
   "dependencies": {
     "@datafoodconsortium/connector": "1.0.0-beta.2",
