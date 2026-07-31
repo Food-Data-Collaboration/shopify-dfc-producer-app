@@ -155,7 +155,7 @@ app.use(
 app.use(serveStatic(STATIC_PATH, { index: false }));
 app.use('/assets', serveStatic(`${process.cwd()}/frontend/assets`, { index: false }));
 
-if (process.env.MOCK_BRIDGE) {
+if (process.env.MOCK_BRIDGE === '1') {
   app.use('/*', async (_req, res) => {
     res
       .status(200)
