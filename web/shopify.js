@@ -54,7 +54,7 @@ const shopify = shopifyApp({
   webhooks: {
     path: '/api/webhooks'
   },
-  ...(process.env.MOCK_BRIDGE
+  ...(process.env.MOCK_BRIDGE === '1'
     ? {}
     : {
         sessionStorage: new PostgreSQLSessionStorage(
