@@ -41,6 +41,7 @@ const apiObject =
     : {
         apiVersion: LATEST_API_VERSION,
         billing: undefined,
+        apiSecretKey: config.SHOPIFY_API_SECRET_KEY,
         scopes
       };
 
@@ -53,7 +54,14 @@ const shopify = shopifyApp({
   webhooks: {
     path: '/api/webhooks'
   },
-  sessionStorage: new PostgreSQLSessionStorage(`${config.DATABASE_HOST_URL}/${config.SHOP_REGISTRY_DATABASE_NAME}`)
+  ...(process.env.MOCK_BRIDGE
+    ? {}
+    : {
+        sessionStorage: new PostgreSQLSessionStorage(
+          `${config.DATABASE_HOST_URL}/${config.SHOP_REGISTRY_DATABASE_NAME}`
+        ),
+      }
+  ),
 });
 
 export default shopify;
