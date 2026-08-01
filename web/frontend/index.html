@@ -15,10 +15,18 @@
         if (isEmbedded && host) {
           try {
             var decodedHost = atob(host);
-            if (decodedHost.includes('localhost') || decodedHost.includes('mock') || window.location.hostname === 'localhost') {
+            if (decodedHost.includes('localhost') || decodedHost.includes('mock')) {
               isMock = true;
             }
           } catch (e) {}
+        }
+
+        // Also load mock App Bridge when running on localhost directly
+        // (e.g. E2E tests navigating to the Express dev server without
+        // the embedded=1 param). Safe to skip in production where the
+        // hostname is never localhost.
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          isMock = true;
         }
 
         var script = document.createElement('script');
