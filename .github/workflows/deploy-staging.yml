@@ -4,6 +4,9 @@ on:
   push:
     branches: ['staging']
 
+permissions:
+  contents: read
+
 jobs:
   frontend-test:
     runs-on: ubuntu-latest
