@@ -7,6 +7,7 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/test-setup.js'],
   transformIgnorePatterns: [],
   testEnvironment: 'node',
+  testPathIgnorePatterns: ['/node_modules/', 'acceptance-tests', 'e2e'],
   moduleNameMapper: {
     '@datafoodconsortium/connector': require.resolve(
       '@datafoodconsortium/connector'

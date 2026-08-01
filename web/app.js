@@ -155,12 +155,21 @@ app.use(
 app.use(serveStatic(STATIC_PATH, { index: false }));
 app.use('/assets', serveStatic(`${process.cwd()}/frontend/assets`, { index: false }));
 
-app.use('/*', shopify.ensureInstalledOnShop(), async (_req, res) =>
-  res
-    .status(200)
-    .set('Content-Type', 'text/html')
-    .send(readFileSync(join(STATIC_PATH, 'index.html')))
-);
+if (process.env.MOCK_BRIDGE === '1') {
+  app.use('/*', async (_req, res) => {
+    res
+      .status(200)
+      .set('Content-Type', 'text/html')
+      .send(readFileSync(join(STATIC_PATH, 'index.html')));
+  });
+} else {
+  app.use('/*', shopify.ensureInstalledOnShop(), async (_req, res) =>
+    res
+      .status(200)
+      .set('Content-Type', 'text/html')
+      .send(readFileSync(join(STATIC_PATH, 'index.html')))
+  );
+}
 
 app.use(errorMiddleware);
 

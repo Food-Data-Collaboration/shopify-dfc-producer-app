@@ -22,9 +22,17 @@
 
 ## Tests
 
+| Command | What |
+|---------|------|
+| `npm test` | Jest scoped to `web/*` — source tests only |
+| `npm run test:e2e` | Playwright E2E (needs built frontend + `MOCK_BRIDGE=1`) |
+| `npm run test:e2e:build` | Build frontend + run Playwright |
+
 - Test files are a mix of `.spec.js` and `.test.js` across the tree.
 - DB-dependent tests (`web/database/*`, `lineItemMappings.spec.js`) fail without a running PostgreSQL.
 - Acceptance tests (`acceptance-tests/`) require a live Shopify app + OIDC credentials.
+- E2E tests (`e2e/`) use Playwright + `@getverdict/mock-bridge` to test the frontend without a real Shopify store. Run via `npm run test:e2e:build` (builds frontend, starts Express with `MOCK_BRIDGE=1`, spins up mock Shopify Admin on port 3080, runs Playwright).
+- CI gating: `deploy-staging.yml` / `deploy-main.yml` run the Playwright suite before building the Docker image. Tests must pass before deploy.
 - Thesauri at `web/connector/thesaurus/` (4 JSON: facets, measures, productTypes, vocabulary). Loaded by connector singleton at init.
 - Tests import `@datafoodconsortium/connector` directly — `moduleNameMapper` in root `jest.config.js` resolves the correct `node_modules`.
 
