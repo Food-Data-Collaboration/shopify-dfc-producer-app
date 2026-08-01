@@ -1,7 +1,7 @@
 const { MockShopifyAdminServer } = require('@getverdict/mock-bridge');
 
 module.exports = async () => {
-  const apiKey = process.env.SHOPIFY_API_KEY || 'test-mock-key';
+  const apiKey = 'test-mock-key';
   const appUrl = `http://localhost:${process.env.BACKEND_PORT || '36329'}`;
   const port = Number(process.env.MOCK_ADMIN_PORT || '3080');
 
