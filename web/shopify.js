@@ -1,7 +1,7 @@
 /* eslint-disable no-useless-constructor */
 /* eslint-disable indent */
 import '@shopify/shopify-api/adapters/node';
-import { LATEST_API_VERSION } from '@shopify/shopify-api';
+import { ApiVersion } from '@shopify/shopify-api';
 import { shopifyApp } from '@shopify/shopify-app-express';
 import { PostgreSQLSessionStorage } from '@shopify/shopify-app-session-storage-postgresql';
 import config from './config.js';
@@ -32,14 +32,14 @@ const scopes = [
 const apiObject =
   process.env.NODE_ENV === 'development'
     ? {
-        apiVersion: LATEST_API_VERSION,
+        apiVersion: ApiVersion.July26,
         billing: undefined,
         apiSecretKey: config.SHOPIFY_API_SECRET_KEY,
         HOST: config.HOST,
         scopes
       }
     : {
-        apiVersion: LATEST_API_VERSION,
+        apiVersion: ApiVersion.July26,
         billing: undefined,
         scopes
       };
