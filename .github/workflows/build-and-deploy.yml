@@ -68,4 +68,13 @@ jobs:
         - name: Redeploy containers
           run: |
             sudo apt-get install curl -y
-            curl https://app.jpc.infomaniak.com/1.0/environment/control/rest/redeploycontainersbygroup?envName=${{inputs.jelastic_env}}\&session=${{secrets.jelastic_access_token}}\&tag=${{steps.meta.outputs.tags}}\&nodeGroup=cp
+            REDEPLOY_URL="https://app.jpc.infomaniak.com/1.0/environment/control/rest/redeploycontainersbygroup?envName=${{ inputs.jelastic_env }}&session=${{ secrets.jelastic_access_token }}&tag=${{ steps.meta.outputs.tags }}&nodeGroup=cp"
+            RESPONSE=$(curl --fail --silent --show-error "$REDEPLOY_URL")
+            echo "$RESPONSE"
+            RESULT=$(printf '%s' "$RESPONSE" | jq -r '.result // empty' 2>/dev/null || true)
+            if [ -z "$RESULT" ] || [ "$RESULT" != "0" ]; then
+              ERROR=$(printf '%s' "$RESPONSE" | jq -r '.error // empty' 2>/dev/null || true)
+              echo "::error::Jelastic redeploy rejected (result=${RESULT:-unknown}): ${ERROR:-no error message in response}"
+              exit 1
+            fi
+            echo "::notice::Jelastic redeploy accepted"
