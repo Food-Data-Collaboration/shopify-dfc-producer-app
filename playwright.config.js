@@ -34,7 +34,7 @@ module.exports = defineConfig({
         MOCK_BRIDGE: '1',
         NODE_ENV: 'production',
         SHOPIFY_API_KEY: 'test-mock-key',
-        SHOPIFY_API_SECRET_KEY: 'test-mock-secret',
+        SHOPIFY_API_SECRET: 'test-mock-secret',
         HOST: `http://localhost:${BACKEND_PORT}`,
         DATABASE_HOST_URL: 'postgresql://mock:5432',
         SHOP_REGISTRY_DATABASE_NAME: 'mock',
