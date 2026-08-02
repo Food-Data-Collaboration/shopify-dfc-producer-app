@@ -41,7 +41,6 @@ const apiObject =
     : {
         apiVersion: LATEST_API_VERSION,
         billing: undefined,
-        apiSecretKey: config.SHOPIFY_API_SECRET_KEY,
         scopes
       };
 
