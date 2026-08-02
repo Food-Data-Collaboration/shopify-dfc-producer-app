@@ -27,7 +27,7 @@ test('ExitIframe page renders spinner and redirects to matching host redirectUri
   await page.goto(`http://localhost:${MOCK_ADMIN_PORT}/`);
   await page.waitForSelector('#app-iframe', { timeout: 15000 });
 
-  const redirectTarget = 'http://localhost/redirect-test-done';
+  const redirectTarget = `http://localhost:${MOCK_ADMIN_PORT}/redirect-test-done`;
   await navigateIframeTo(page, '/exitIframe', { redirectUri: redirectTarget });
 
   await page.waitForURL('**/redirect-test-done', { timeout: 10000 });
