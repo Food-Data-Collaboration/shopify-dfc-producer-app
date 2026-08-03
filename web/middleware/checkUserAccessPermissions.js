@@ -45,10 +45,7 @@ async function authorise(accessToken, req, res, next) {
   }
 
   if (!tokenSet.active) {
-    return res.status(403).json({
-      message: 'User access denied - token expired',
-      error: 'User not authorized'
-    });
+    return handleInactiveToken(res, accessToken);
   }
 
   req.tokenSet = tokenSet;
@@ -109,6 +106,60 @@ async function authorise(accessToken, req, res, next) {
 function bearerToken(req) {
   const token = req.get('authorization');
   return token?.split(' ')[1];
+}
+
+function decodeJwtPayload(accessToken) {
+  try {
+    const payload = accessToken.split('.')[1];
+    return JSON.parse(Buffer.from(payload, 'base64').toString());
+  } catch {
+    return null;
+  }
+}
+
+function handleInactiveToken(res, accessToken) {
+  const payload = decodeJwtPayload(accessToken);
+
+  if (payload) {
+    console.error(
+      'Token introspection failed - token inactive. Token payload:',
+      JSON.stringify(payload, null, 2)
+    );
+
+    const now = Date.now() / 1000;
+    const isExpired = payload.exp && payload.exp < now;
+    const audienceMismatch =
+      payload.aud && clientId && !String(payload.aud).includes(clientId);
+
+    if (isExpired) {
+      return res.status(403).json({
+        message: 'User access denied - token expired',
+        error: `Token expired at ${new Date(payload.exp * 1000).toISOString()}`
+      });
+    }
+
+    if (audienceMismatch) {
+      return res.status(403).json({
+        message: 'User access denied - token not accepted by the identity provider',
+        error: `Audience mismatch: token issued for "${payload.aud}" but introspected as client "${clientId}"`
+      });
+    }
+
+    return res.status(403).json({
+      message: 'User access denied - token not accepted by the identity provider',
+      error: `Token inactive for an unknown reason (audience: "${payload.aud}")`
+    });
+  }
+
+  console.error(
+    'Token introspection failed - token inactive. Could not decode JWT payload:',
+    accessToken
+  );
+
+  return res.status(403).json({
+    message: 'User access denied - token expired',
+    error: 'User not authorized'
+  });
 }
 
 export default checkUserAccessPermissions;
