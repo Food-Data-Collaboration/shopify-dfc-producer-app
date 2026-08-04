@@ -1,11 +1,9 @@
-import jwt from 'jsonwebtoken';
-
 const mockQuery = jest.fn();
 jest.mock('../database/connect.js', () => ({ query: (...args) => mockQuery(...args) }));
 
-const secret = 'test-secret';
+const encode = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
 
-const sign = (claims) => jwt.sign(claims, secret, { algorithm: 'HS256' });
+const sign = (claims) => `${encode({ alg: 'none' })}.${encode(claims)}.signature`;
 
 describe('checkUserAccessPermissions - inactive token diagnostics', () => {
   let checkUserAccessPermissions;
@@ -92,5 +90,50 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
     const { res, next } = await callMiddleware(token);
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
+  });
+
+  test('audience mismatch is detected when aud is an array', async () => {
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      aud: ['some-other-client', 'account']
+    });
+    const { res } = await callMiddleware(token);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'User access denied - token not accepted by the identity provider',
+        error: expect.stringContaining('Audience mismatch')
+      })
+    );
+  });
+
+  test('no mismatch when aud array includes the producer client', async () => {
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      aud: ['fdc-producer', 'account']
+    });
+    const { res } = await callMiddleware(token);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'User access denied - token not accepted by the identity provider',
+        error: expect.stringContaining('unknown reason')
+      })
+    );
+  });
+
+  test('diagnostics logging is gated behind env var', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
+    await callMiddleware(token);
+    expect(spy).toHaveBeenCalledWith(
+      'Token introspection failed - token inactive. Claims:',
+      expect.any(String)
+    );
+    spy.mockRestore();
   });
 });

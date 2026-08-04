@@ -111,7 +111,9 @@ function bearerToken(req) {
 function decodeJwtPayload(accessToken) {
   try {
     const payload = accessToken.split('.')[1];
-    return JSON.parse(Buffer.from(payload, 'base64').toString());
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    return JSON.parse(Buffer.from(padded, 'base64').toString());
   } catch {
     return null;
   }
@@ -121,15 +123,12 @@ function handleInactiveToken(res, accessToken) {
   const payload = decodeJwtPayload(accessToken);
 
   if (payload) {
-    console.error(
-      'Token introspection failed - token inactive. Token payload:',
-      JSON.stringify(payload, null, 2)
-    );
+    logInactiveTokenDiagnostics(payload);
 
     const now = Date.now() / 1000;
     const isExpired = payload.exp && payload.exp < now;
-    const audienceMismatch =
-      payload.aud && clientId && !String(payload.aud).includes(clientId);
+    const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud].filter(Boolean);
+    const audienceMismatch = clientId && audiences.length > 0 && !audiences.includes(clientId);
 
     if (isExpired) {
       return res.status(403).json({
@@ -152,14 +151,31 @@ function handleInactiveToken(res, accessToken) {
   }
 
   console.error(
-    'Token introspection failed - token inactive. Could not decode JWT payload:',
-    accessToken
+    'Token introspection failed - token inactive. Could not decode JWT payload.'
   );
 
   return res.status(403).json({
-    message: 'User access denied - token expired',
+    message: 'User access denied - token not accepted by the identity provider',
     error: 'User not authorized'
   });
+}
+
+function logInactiveTokenDiagnostics(payload) {
+  if (process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS !== '1') {
+    return;
+  }
+
+  const safeClaims = {};
+  ['iss', 'sub', 'aud', 'exp', 'iat', 'azp', 'jti'].forEach((claim) => {
+    if (payload[claim] !== undefined) {
+      safeClaims[claim] = payload[claim];
+    }
+  });
+
+  console.error(
+    'Token introspection failed - token inactive. Claims:',
+    JSON.stringify(safeClaims, null, 2)
+  );
 }
 
 export default checkUserAccessPermissions;
