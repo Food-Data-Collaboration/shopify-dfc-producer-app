@@ -253,4 +253,24 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
     spy.mockRestore();
     delete process.env.LOG_AUTH_DIAGNOSTICS;
   });
+
+  test('opaque token decode failure emits distinct <decode failed> diagnostic', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    // opaque / invalid JWT: payload not base64 JSON, decode returns null
+    const opaqueToken = 'not.a.jwt';
+    const { res } = await callMiddleware(opaqueToken);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('Token denied'),
+      expect.stringContaining('<decode failed')
+    );
+    // must not emit empty object which would be ambiguous with valid decoded token
+    const payloadArg = spy.mock.calls[0][1];
+    expect(payloadArg).not.toContain('"iss"');
+    expect(payloadArg).toContain('opaque/invalid JWT');
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
 });

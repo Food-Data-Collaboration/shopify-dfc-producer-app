@@ -179,9 +179,11 @@ function logInactiveTokenDiagnostics(accessToken, context, cachedPayload) {
 
   console.error(
     `Token denied (${context}).`,
-    accessToken
-      ? `JWT payload claims: ${JSON.stringify(safeClaims, null, 2)}`
-      : 'No access token present'
+    !accessToken
+      ? 'No access token present'
+      : !payload
+        ? 'JWT payload claims: <decode failed - opaque/invalid JWT>'
+        : `JWT payload claims: ${JSON.stringify(safeClaims, null, 2)}`
   );
 }
 
