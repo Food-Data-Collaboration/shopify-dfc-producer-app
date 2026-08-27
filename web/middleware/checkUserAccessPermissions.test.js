@@ -137,7 +137,7 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
     spy.mockRestore();
   });
 
-  test('diagnostics logging also works with LOG_AUTH_DIAGNOSTICS alias', async () => {
+  test('diagnostics logging works with primary LOG_AUTH_DIAGNOSTICS flag', async () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
     delete process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS;
     process.env.LOG_AUTH_DIAGNOSTICS = '1';
