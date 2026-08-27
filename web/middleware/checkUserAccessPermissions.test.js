@@ -131,9 +131,126 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
     const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
     await callMiddleware(token);
     expect(spy).toHaveBeenCalledWith(
-      'Token introspection failed - token inactive. Claims:',
-      expect.any(String)
+      expect.stringContaining('Token denied'),
+      expect.stringContaining('JWT payload claims')
     );
     spy.mockRestore();
+  });
+
+  test('diagnostics logging also works with LOG_AUTH_DIAGNOSTICS alias', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    delete process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS;
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
+    await callMiddleware(token);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('Token denied'),
+      expect.stringContaining('JWT payload claims')
+    );
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
+
+  test('token missing logs when diagnostics enabled', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    const req = { get: () => undefined, shop: {}, shopName: 'test-shop' };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+    await checkUserAccessPermissions(req, res, next);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('Token denied'),
+      expect.stringContaining('No access token present')
+    );
+    expect(res.status).toHaveBeenCalledWith(403);
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
+
+  test('user not found logs userId when diagnostics enabled', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({
+      active: true,
+      username: 'missing@example.com',
+      email: 'missing@example.com',
+      name: 'Missing User'
+    });
+    mockQuery.mockReset();
+    mockQuery.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    const req = {
+      get: (h) => (h === 'authorization' ? `Bearer ${token}` : undefined),
+      shop: { ordersFeatureEnabled: true },
+      shopName: 'test-shop'
+    };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+    await checkUserAccessPermissions(req, res, next);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('user not found'),
+      expect.stringContaining('JWT payload claims')
+    );
+    expect(spy.mock.calls[0][0]).toContain('missing@example.com');
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
+
+  test('user not authorized logs userId when diagnostics enabled', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({
+      active: true,
+      username: 'blocked@example.com',
+      email: 'blocked@example.com',
+      name: 'Blocked User'
+    });
+    mockQuery.mockReset();
+    mockQuery.mockResolvedValueOnce({ rows: [{ status: false }] });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    const req = {
+      get: (h) => (h === 'authorization' ? `Bearer ${token}` : undefined),
+      shop: { ordersFeatureEnabled: true },
+      shopName: 'test-shop'
+    };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+    await checkUserAccessPermissions(req, res, next);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('user not authorized'),
+      expect.stringContaining('JWT payload claims')
+    );
+    expect(spy.mock.calls[0][0]).toContain('blocked@example.com');
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
+
+  test('no diagnostics log when env vars not set', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+    delete process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS;
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
+    await callMiddleware(token);
+    // token missing path also gated
+    const req = { get: () => undefined, shop: {}, shopName: 'test-shop' };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    await checkUserAccessPermissions(req, res, jest.fn());
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  test('diagnostics log pretty-prints safe claims', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ iss: 'https://issuer.example', sub: 'user123', aud: 'account', exp: Math.floor(Date.now() / 1000) + 3600 });
+    await callMiddleware(token);
+    const payloadArg = spy.mock.calls[0][1];
+    expect(payloadArg).toContain('\n'); // pretty-printed JSON contains newline
+    expect(payloadArg).toContain('"iss"');
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
   });
 });
