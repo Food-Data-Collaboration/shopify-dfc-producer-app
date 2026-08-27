@@ -27,7 +27,7 @@
   - `/api/{products,hub-users,shop}` — Shopify-session APIs (`shopify.validateAuthenticatedSession()` + `checkOnlineSession`)
   - `/fdc` — legacy (`web/legacy-fdc-modules/`)
   - `/api/scopes` — unauthenticated
-- Middleware stack DFC: `populateShop` → `checkUserAccessPermissions` → `checkOrdersFeature`/`checkScopePermissions` → handler.
+- DFC middleware varies by route: enterprise detail and SuppliedProducts use `populateShop` → `checkUserAccessPermissions` → `checkScopePermissions`; Orders also adds `checkOrdersFeature`; the enterprise collection omits shop/scope checks, and Portals currently uses only `populateShop`.
 - Modules: `web/fdc-modules/{orders,enterprises,products,portals}` (controllers + `dfc/` transforms), `web/api-modules/{products,users,shop}`, `web/legacy-fdc-modules/`.
 - DB multi-tenant: central `shop_registry` → per-shop pools via `web/database/connect.js:getShopDbConnection(shopId)`, SSL `rejectUnauthorized:false`. Schema per module (`web/database/{shop_registry,orders,portals,users,...}/schema.sql`); `migrations.sql` + `auto-timestamp.sql`.
 - Config: `web/config.js` loads `web/.env` (handles cwd `web` vs root).
