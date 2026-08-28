@@ -168,7 +168,7 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
     delete process.env.LOG_AUTH_DIAGNOSTICS;
   });
 
-  test('user not found logs userId when diagnostics enabled', async () => {
+  test('user not found logs without PII when diagnostics enabled', async () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
     process.env.LOG_AUTH_DIAGNOSTICS = '1';
     mockClient.introspect.mockResolvedValue({
@@ -179,7 +179,7 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
     });
     mockQuery.mockReset();
     mockQuery.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
-    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    const token = sign({ sub: 'user-sub-123', exp: Math.floor(Date.now() / 1000) + 3600 });
     const req = {
       get: (h) => (h === 'authorization' ? `Bearer ${token}` : undefined),
       shop: { ordersFeatureEnabled: true },
@@ -192,12 +192,15 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
       expect.stringContaining('user not found'),
       expect.stringContaining('JWT payload claims')
     );
-    expect(spy.mock.calls[0][0]).toContain('missing@example.com');
+    // PII redaction: raw email must not appear in diagnostic context
+    expect(spy.mock.calls[0][0]).not.toContain('missing@example.com');
+    // correlation via allowlisted sub claim
+    expect(spy.mock.calls[0][1]).toContain('user-sub-123');
     spy.mockRestore();
     delete process.env.LOG_AUTH_DIAGNOSTICS;
   });
 
-  test('user not authorized logs userId when diagnostics enabled', async () => {
+  test('user not authorized logs without PII when diagnostics enabled', async () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
     process.env.LOG_AUTH_DIAGNOSTICS = '1';
     mockClient.introspect.mockResolvedValue({
@@ -208,7 +211,7 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
     });
     mockQuery.mockReset();
     mockQuery.mockResolvedValueOnce({ rows: [{ status: false }] });
-    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    const token = sign({ sub: 'blocked-sub-456', exp: Math.floor(Date.now() / 1000) + 3600 });
     const req = {
       get: (h) => (h === 'authorization' ? `Bearer ${token}` : undefined),
       shop: { ordersFeatureEnabled: true },
@@ -221,7 +224,8 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
       expect.stringContaining('user not authorized'),
       expect.stringContaining('JWT payload claims')
     );
-    expect(spy.mock.calls[0][0]).toContain('blocked@example.com');
+    expect(spy.mock.calls[0][0]).not.toContain('blocked@example.com');
+    expect(spy.mock.calls[0][1]).toContain('blocked-sub-456');
     spy.mockRestore();
     delete process.env.LOG_AUTH_DIAGNOSTICS;
   });

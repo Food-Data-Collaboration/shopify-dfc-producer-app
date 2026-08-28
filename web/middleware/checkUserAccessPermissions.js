@@ -32,7 +32,7 @@ async function getUserTokenSet(accessToken) {
 
 async function authorise(accessToken, req, res, next) {
   if (!accessToken) {
-    logInactiveTokenDiagnostics(null, 'token missing');
+    logAuthDiagnostics(null, 'token missing');
     return res.status(403).json({
       message: 'User access denied - token missing',
       error: 'User not authorized'
@@ -80,7 +80,7 @@ async function authorise(accessToken, req, res, next) {
         shopName
       );
 
-      logInactiveTokenDiagnostics(accessToken, `user not found in database (${userId})`);
+      logAuthDiagnostics(accessToken, 'user not found in database');
       return res.status(403).json({
         message: 'User access denied',
         error: 'User not found in database'
@@ -93,7 +93,7 @@ async function authorise(accessToken, req, res, next) {
       return next();
     }
 
-    logInactiveTokenDiagnostics(accessToken, `user not authorized (${userId})`);
+    logAuthDiagnostics(accessToken, 'user not authorized');
     return res.status(403).json({
       message: 'User access denied',
       error: 'User not authorized'
@@ -124,7 +124,7 @@ function decodeJwtPayload(accessToken) {
 
 function handleInactiveToken(res, accessToken) {
   const payload = decodeJwtPayload(accessToken);
-  logInactiveTokenDiagnostics(accessToken, 'token inactive / introspected as not active', payload);
+  logAuthDiagnostics(accessToken, 'token inactive / introspected as not active', payload);
 
   if (payload) {
     const now = Date.now() / 1000;
@@ -160,7 +160,7 @@ function handleInactiveToken(res, accessToken) {
   });
 }
 
-function logInactiveTokenDiagnostics(accessToken, context, cachedPayload) {
+function logAuthDiagnostics(accessToken, context, cachedPayload) {
   // LOG_AUTH_DIAGNOSTICS is the current name; LOG_INACTIVE_TOKEN_DIAGNOSTICS kept as deprecated alias
   if (process.env.LOG_AUTH_DIAGNOSTICS !== '1' && process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS !== '1') {
     return;
@@ -186,5 +186,8 @@ function logInactiveTokenDiagnostics(accessToken, context, cachedPayload) {
         : `JWT payload claims: ${JSON.stringify(safeClaims, null, 2)}`
   );
 }
+
+// Deprecated alias — prefer logAuthDiagnostics
+const logInactiveTokenDiagnostics = logAuthDiagnostics;
 
 export default checkUserAccessPermissions;
