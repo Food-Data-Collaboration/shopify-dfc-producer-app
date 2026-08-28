@@ -1,86 +1,60 @@
 # AGENTS.md — shopify-dfc-producer-app
 
-## Dev commands
+## Setup
 
-| Command | What |
-|---------|------|
-| `npm test` | Jest scoped to `web/*` — source tests only (runs in-band, force-exit) |
-| `npm run acceptance-test` | Jest scoped to `acceptance-tests/` (needs live server + OIDC) |
-| `npm run build:db` | Build DB — runs `web/database/build.js` (central + per-shop schema) |
-| `yarn dev` (root) | Start Shopify dev server (3 ports: 36327, 36328, 36329) |
+- Node >=20.10.0 (`web/package.json` engines). `web/` is ESM (`"type": "module"`), root is CJS.
+- Install: `yarn install` at root, then `yarn install` in `web/` and `web/frontend/` (3 lockfiles). `yarn` only — `package-lock.json` appears after install and is tracked, don't delete.
+- Env: `web/.env` (not root). Validated by `web/config.js` via yup (`HOST`, `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET_KEY`, `OIDC_*`, `DATABASE_HOST_URL`, `SHOP_REGISTRY_DATABASE_NAME`). `shopify.app.*.toml` per-developer configs exist.
+- DB local: `local-db/docker-compose.yml` (postgres 5435 + pgAdmin 5050). Build schema: `npm run build:db` (runs `web/database/build.js` — connects to `SHOP_REGISTRY_DATABASE_NAME`).
+
+## Commands
+
+| Command | Notes |
+|---------|-------|
+| `yarn dev` (root) | Shopify CLI dev — 3 ports `36327/36328/36329` (`cross-env SERVER_PORT/FRONTEND_PORT/BACKEND_PORT`). Use `--reset` on first run. |
 | `cd web && yarn serve` | Production Express server |
-| `npx jest --no-coverage path/to/test.spec.js` | Single test (run from root) |
-
-## Repo conventions
-
-- **`yarn` is used** for dependency management (root + `web/` both have `yarn.lock`). Both dirs need `yarn install`.
-- **`web/` is ESM** (`"type": "module"`). Root `package.json` is CJS — jest.config.js uses `require.resolve`.
-- **Node >=20.10.0** required (`web/package.json` engines).
-- **Two `shopify.app.*.toml`** files exist (`alex`, `sonouno`) — per-developer Shopify App configs.
-- `.env` lives in **`web/`** — `web/config.js` loads it via dotenv with yup validation.
-- ESLint (airbnb base) + Prettier configured in `web/`.
-
-## Tests
-
-| Command | What |
-|---------|------|
-| `npm test` | Jest scoped to `web/*` — source tests only |
-| `npm run test:e2e` | Playwright E2E (needs built frontend + `MOCK_BRIDGE=1`) |
-| `npm run test:e2e:build` | Build frontend + run Playwright |
-
-- Test files are a mix of `.spec.js` and `.test.js` across the tree.
-- DB-dependent tests (`web/database/*`, `lineItemMappings.spec.js`) fail without a running PostgreSQL.
-- Acceptance tests (`acceptance-tests/`) require a live Shopify app + OIDC credentials.
-- E2E tests (`e2e/`) use Playwright + `@getverdict/mock-bridge` to test the frontend without a real Shopify store. Run via `npm run test:e2e:build` (builds frontend, starts Express with `MOCK_BRIDGE=1`, spins up mock Shopify Admin on port 3080, runs Playwright).
-- CI gating: `deploy-staging.yml` / `deploy-main.yml` run the Playwright suite before building the Docker image. Tests must pass before deploy.
-- Thesauri at `web/connector/thesaurus/` (4 JSON: facets, measures, productTypes, vocabulary). Loaded by connector singleton at init.
-- Tests import `@datafoodconsortium/connector` directly — `moduleNameMapper` in root `jest.config.js` resolves the correct `node_modules`.
+| `npm test` | `jest --runInBand --detectOpenHandles --forceExit web/*` — excludes `acceptance-tests/` and `e2e/` |
+| `npx jest --no-coverage path/to/file.spec.js` | Single test (from root) — captures blank-node `Received:` from full suite |
+| `npm run acceptance-test` | `web/*` excluded, targets `acceptance-tests/` — needs live server + OIDC |
+| `npm run test:e2e:build` | Builds `web/frontend` (`vite build`), starts server `MOCK_BRIDGE=1`, mock admin on 3080, runs Playwright |
+| `npm run build:db` | `node ./web/database/build.js` |
+| ESLint/Prettier | Configured in `web/.eslintrc.cjs` (airbnb base). No separate typecheck. |
 
 ## Architecture
 
-- **Entrypoint**: `web/app.js` (Express). Routes under `/api/dfc/Enterprises/:EnterpriseName/...`.
-- **Connector singleton**: `web/connector/index.js` — async init, cached after first call. Thesauri loaded from local JSON via `import ... with { type: 'json' }`.
-- **Key modules under `web/fdc-modules/`**: `orders/` (controllers + dfc transform), `enterprises/`, `products/`, `portals/`.
-- **Newer API modules under `web/api-modules/`**: `products/`, `users/`, `shop/` — authenticated via Shopify session (not DFC scope).
-- **Two routing systems**: legacy at `/fdc/` (via `web/legacy-fdc-modules/`), current at `/api/dfc/`.
-- **Middleware stack** on DFC routes: `populateShop` → `checkUserAccessPermissions` → `checkOrdersFeature`/`checkScopePermissions` → handler.
-- **Database**: Multi-tenant PostgreSQL. Central `shop_registry` maps shop_name → db_name. `web/database/connect.js` creates per-shop pools via `getShopDbConnection(shopId)`. SSL with `rejectUnauthorized: false`.
-- **Local DB**: `local-db/docker-compose.yml` — PostgreSQL on port 5435 + pgAdmin on 5050.
-- **Config** (`web/config.js`): validates `HOST`, `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET_KEY`, `OIDC_*`, `DATABASE_HOST_URL`, `SHOP_REGISTRY_DATABASE_NAME` via yup.
-- **Docker**: `Dockerfile` copies only `web/` into the image, runs `yarn` + frontend build.
-- **CI/CD**: GitHub Actions (`.github/workflows/`). `build-and-deploy.yml` is a reusable workflow: builds Docker image, pushes to `ghcr.io`, redeploys on Jelastic. `deploy-staging.yml` triggers on `staging` branch → `ofn-producer-staging`. `deploy-main.yml` triggers on `main` → `ofn-producer`. Neither has run yet.
+- Entrypoint `web/app.js` (Express). Routes:
+  - `/api/dfc/Enterprises/:EnterpriseName/{Orders,SuppliedProducts,Portals}` — DFC API (JSON-LD via `express.text({type:'*/json'})`)
+  - `/api/{products,hub-users,shop}` — Shopify-session APIs (`shopify.validateAuthenticatedSession()` + `checkOnlineSession`)
+  - `/fdc` — legacy (`web/legacy-fdc-modules/`)
+  - `/api/scopes` — unauthenticated
+- DFC middleware varies by route: enterprise detail and SuppliedProducts use `populateShop` → `checkUserAccessPermissions` → `checkScopePermissions`; Orders also adds `checkOrdersFeature`; the enterprise collection omits shop/scope checks, and Portals currently uses only `populateShop`.
+- Modules: `web/fdc-modules/{orders,enterprises,products,portals}` (controllers + `dfc/` transforms), `web/api-modules/{products,users,shop}`, `web/legacy-fdc-modules/`.
+- DB multi-tenant: central `shop_registry` → per-shop pools via `web/database/connect.js:getShopDbConnection(shopId)`, SSL `rejectUnauthorized:false`. Schema per module (`web/database/{shop_registry,orders,portals,users,...}/schema.sql`); `migrations.sql` + `auto-timestamp.sql`.
+- Config: `web/config.js` loads `web/.env` (handles cwd `web` vs root).
+- Connector singleton `web/connector/index.js` — lazy, cached. Loads 4 JSON thesauri (`facets/measures/productTypes/vocabulary`) via `import ... with {type:'json'}`. Sets `exporter.outputContext` to `DFC_CONTEXT_W3ID`; `dfcContext.js:normalizeContext()` swaps wordpress `context_1.16.0.jsonld` ↔ `w3id.org` on import.
+- Frontend `web/frontend/` — Vite + React + Polaris, `vite build` → `web/frontend/dist`, served by Express static. `dev_embed.js` for Shopify.
+- Docker `Dockerfile` copies only `web/` then `yarn` + frontend build. CI `build-and-deploy.yml` (reusable, pushes `ghcr.io`), `deploy-staging.yml` (staging branch), `deploy-main.yml` (main).
 
-## Connector API (`@datafoodconsortium/connector`)
+## Connector `@datafoodconsortium/connector` (1.0.0-beta.2)
 
-- Both root and `web/` install from npm: `^1.0.0-alpha.12`.
-- Default import path: `@datafoodconsortium/connector` (NOT `@fooddatacollaboration/linkml-connector` — that's on the `linkml-connector` branch).
-- Object creation uses named-param objects: `new Order({ connector, semanticId, ... })` / `connector.createQuantity({ value, hasUnit })`.
-- Property access via getters: `obj.getSemanticId()`, `obj.getOrderStatus()`, `obj.getQuantity()`.
-- Vocabulary constants via `connector.VOCABULARY.STATES.ORDERSTATE.*`.
-- `connector.export(array)` takes an array; `connector.import(string)` is async (returns array).
-- `line.getOffer()` returns an Offer; `offer.getOfferedItem()` returns a SuppliedProduct.
+- Installed at root and `web/` as `^1.0.0-beta.2`. Import `@datafoodconsortium/connector` (not `linkml-connector` — that's `linkml-connector` branch with `v2.0.0` breaking API).
+- Creation: `new Order({connector, semanticId, ...})` / `connector.createQuantity({value, hasUnit})` / `connector.createOffer({semanticId, offeredItem})`.
+- Access via getters: `getSemanticId()`, `getOrderStatus()`, `getQuantity()`, `line.getOffer().getOfferedItem()`.
+- Vocab: `connector.VOCABULARY.STATES.ORDERSTATE.*`, `connector.MEASURES.UNIT.CURRENCYUNIT.*` (wrap via `web/utils/currencyMeasureFor.js`).
+- `connector.export(array)` → JSON-LD string, `connector.import(string)` async → array (filter `instanceof Order/OrderLine/SaleSession`).
+- Beta.2 quirks: blank nodes `_:bN` (old staging `beta.2` republish used `_:_:bN`); `orderStatus`/`fulfilmentStatus` may be plain string vs `{"@id":...}` — see `normalizeContext`; `HOST` must be explicit in semanticIds (`config.HOST`).
 
-## Gotchas & pitfalls
+## Tests
 
-- **npm `1.0.0-beta.2` was silently republished** (same version tag, different tarball). Changed: `_:_:b` → `_:b` (single-colon blank nodes), `dfc-v:OrderState` → `dfc-v:Complete` for COMPLETED orders, `hasPart` as string (not array) for single lines, additional graph objects (`AsPlannedTransformation`, `CatalogItem`, `Offer`, `hasVariant`). Test expectations must match the current tarball, not what staging used to test against.
-- **Blank node IDs are sequential and test-order-dependent.** The `b1`–`b6` output from a standalone script becomes `b17`–`b22` when the same test runs in the full suite, because prior tests create objects that advance the counter. To update expectations, capture the **`Received:`** value from the actual failing test run — don't generate mock values in isolation.
-- **`package-lock.json` files** appear at root and `web/` after `yarn install` and **are tracked** in the repository.
-- **Cherry-picking from staging:** Skip commits that revert the connector to an older ref (e.g. `jgaehring/connector-typescript#rc-alpha-12`). Regenerate lockfiles **on the target branch** with `yarn install` rather than trying to merge lockfile diffs.
-- **Engines field:** `web/package.json` `engines.node` on `main` may lag behind staging's `>=20.10.0`. After cherry-picks, verify it matches the actual runtime (Dockerfile uses Node 20).
+- Jest `jest.config.js` (`ts-jest` + `babel-jest`, `transformIgnorePatterns:[]`, `testPathIgnorePatterns:['/node_modules/','acceptance-tests','e2e']`, `moduleNameMapper` resolves connector). `test-setup.js` closes `pool` after all.
+- Mix `.spec.js`/`.test.js`. DB-dependent tests (`web/database/*`, `lineItemMappings.spec.js`) fail without Postgres.
+- E2E: Playwright `playwright.config.js` (workers 1, `baseURL http://localhost:3080`, `global-setup/teardown`, `webServer` spawns `node index.js` in `web/` with `MOCK_BRIDGE=1`, `SHOPIFY_API_KEY=test-mock-key`). Needs `yarn --cwd web/frontend build` first unless using `test:e2e:build`.
+- CI gates deploy: Playwright suite must pass before Docker build.
 
-## Migration branch
+## Gotchas
 
-`linkml-connector` branch has a full migration to `@fooddatacollaboration/linkml-connector` v2.0.0. The API is substantially different (field-based access, spread export, compact URIs). If working on that branch, see its version of this file for the new conventions.
-
-## Beta.2 upgrade notes
-
-Upgrading `@datafoodconsortium/connector` from alpha.12 to beta.2 is a **breaking change**. Verified via test failures on this repo:
-
-- **`connector.export()` context URI changed** — beta.2 outputs `https://www.datafoodconsortium.org/wp-content/plugins/wordpress-context-jsonld/context_1.16.0.jsonld`, not the `w3id.org` URI.
-- **Blank node IDs doubled** — export produces `_:_:b10` instead of `_:b10`.
-- **Semantic IDs lose HOST** — `HOST` env var is no longer picked up; export produces `undefinedapi/dfc/...` instead of `http://localhost:3629/api/dfc/...`.
-- **Status properties flattened** — `hasOrderStatus` and `hasFulfilmentStatus` are now plain strings (`"dfc-v:Held"`) instead of `{"@id":"dfc-v:Held"}` objects.
-- **`lineItems` shape changed** — no longer an array; code using `.reduce()` on it will break.
-- **Currency mapping changed** — tests get `Unknown connector currency mapping for currenct code undefined`.
-
-Files that need updating: `web/fdc-modules/orders/dfc/dfc-order.js`, `web/connector/productUtils.js`, `web/connector/mocks.js`, and all corresponding test files.
+- Blank node IDs are global counter — `b1` in isolation becomes `b17` in full suite. Always copy `Received:` from the failing `npm test` run, don't generate in a standalone script.
+- `HOST` trailing slash matters: `${config.HOST}api/dfc/...` — ensure `.env` HOST ends with `/`.
+- `web/database/build.js` requires existing `SHOP_REGISTRY_DATABASE_NAME` DB; `DATABASE_HOST_URL` without db name.
+- Frontend changes need rebuild before `npm run test:e2e` (without `:build`).
+- `linkml-connector` branch API differs (field access, spread export, compact URIs) — don't apply main-branch connector patterns there.

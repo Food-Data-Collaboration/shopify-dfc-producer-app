@@ -131,9 +131,150 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
     const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
     await callMiddleware(token);
     expect(spy).toHaveBeenCalledWith(
-      'Token introspection failed - token inactive. Claims:',
-      expect.any(String)
+      expect.stringContaining('Token denied'),
+      expect.stringContaining('JWT payload claims')
     );
     spy.mockRestore();
+  });
+
+  test('diagnostics logging works with primary LOG_AUTH_DIAGNOSTICS flag', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    delete process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS;
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
+    await callMiddleware(token);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('Token denied'),
+      expect.stringContaining('JWT payload claims')
+    );
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
+
+  test('token missing logs when diagnostics enabled', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    const req = { get: () => undefined, shop: {}, shopName: 'test-shop' };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+    await checkUserAccessPermissions(req, res, next);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('Token denied'),
+      expect.stringContaining('No access token present')
+    );
+    expect(res.status).toHaveBeenCalledWith(403);
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
+
+  test('user not found logs without PII when diagnostics enabled', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({
+      active: true,
+      username: 'missing@example.com',
+      email: 'missing@example.com',
+      name: 'Missing User'
+    });
+    mockQuery.mockReset();
+    mockQuery.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
+    const token = sign({ sub: 'user-sub-123', exp: Math.floor(Date.now() / 1000) + 3600 });
+    const req = {
+      get: (h) => (h === 'authorization' ? `Bearer ${token}` : undefined),
+      shop: { ordersFeatureEnabled: true },
+      shopName: 'test-shop'
+    };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+    await checkUserAccessPermissions(req, res, next);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('user not found'),
+      expect.stringContaining('JWT payload claims')
+    );
+    // PII redaction: raw email must not appear in diagnostic context
+    expect(spy.mock.calls[0][0]).not.toContain('missing@example.com');
+    // correlation via allowlisted sub claim
+    expect(spy.mock.calls[0][1]).toContain('user-sub-123');
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
+
+  test('user not authorized logs without PII when diagnostics enabled', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({
+      active: true,
+      username: 'blocked@example.com',
+      email: 'blocked@example.com',
+      name: 'Blocked User'
+    });
+    mockQuery.mockReset();
+    mockQuery.mockResolvedValueOnce({ rows: [{ status: false }] });
+    const token = sign({ sub: 'blocked-sub-456', exp: Math.floor(Date.now() / 1000) + 3600 });
+    const req = {
+      get: (h) => (h === 'authorization' ? `Bearer ${token}` : undefined),
+      shop: { ordersFeatureEnabled: true },
+      shopName: 'test-shop'
+    };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+    await checkUserAccessPermissions(req, res, next);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('user not authorized'),
+      expect.stringContaining('JWT payload claims')
+    );
+    expect(spy.mock.calls[0][0]).not.toContain('blocked@example.com');
+    expect(spy.mock.calls[0][1]).toContain('blocked-sub-456');
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
+
+  test('no diagnostics log when env vars not set', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+    delete process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS;
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
+    await callMiddleware(token);
+    // token missing path also gated
+    const req = { get: () => undefined, shop: {}, shopName: 'test-shop' };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    await checkUserAccessPermissions(req, res, jest.fn());
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  test('diagnostics log pretty-prints safe claims', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ iss: 'https://issuer.example', sub: 'user123', aud: 'account', exp: Math.floor(Date.now() / 1000) + 3600 });
+    await callMiddleware(token);
+    const payloadArg = spy.mock.calls[0][1];
+    expect(payloadArg).toContain('\n'); // pretty-printed JSON contains newline
+    expect(payloadArg).toContain('"iss"');
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
+  });
+
+  test('opaque token decode failure emits distinct <decode failed> diagnostic', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.LOG_AUTH_DIAGNOSTICS = '1';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    // opaque / invalid JWT: payload not base64 JSON, decode returns null
+    const opaqueToken = 'not.a.jwt';
+    const { res } = await callMiddleware(opaqueToken);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('Token denied'),
+      expect.stringContaining('<decode failed')
+    );
+    // must not emit empty object which would be ambiguous with valid decoded token
+    const payloadArg = spy.mock.calls[0][1];
+    expect(payloadArg).not.toContain('"iss"');
+    expect(payloadArg).toContain('opaque/invalid JWT');
+    spy.mockRestore();
+    delete process.env.LOG_AUTH_DIAGNOSTICS;
   });
 });

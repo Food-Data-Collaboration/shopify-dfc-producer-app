@@ -32,6 +32,7 @@ async function getUserTokenSet(accessToken) {
 
 async function authorise(accessToken, req, res, next) {
   if (!accessToken) {
+    logAuthDiagnostics(null, 'token missing');
     return res.status(403).json({
       message: 'User access denied - token missing',
       error: 'User not authorized'
@@ -79,6 +80,7 @@ async function authorise(accessToken, req, res, next) {
         shopName
       );
 
+      logAuthDiagnostics(accessToken, 'user not found in database');
       return res.status(403).json({
         message: 'User access denied',
         error: 'User not found in database'
@@ -91,6 +93,7 @@ async function authorise(accessToken, req, res, next) {
       return next();
     }
 
+    logAuthDiagnostics(accessToken, 'user not authorized');
     return res.status(403).json({
       message: 'User access denied',
       error: 'User not authorized'
@@ -121,10 +124,9 @@ function decodeJwtPayload(accessToken) {
 
 function handleInactiveToken(res, accessToken) {
   const payload = decodeJwtPayload(accessToken);
+  logAuthDiagnostics(accessToken, 'token inactive / introspected as not active', payload);
 
   if (payload) {
-    logInactiveTokenDiagnostics(payload);
-
     const now = Date.now() / 1000;
     const isExpired = payload.exp && payload.exp < now;
     const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud].filter(Boolean);
@@ -150,32 +152,42 @@ function handleInactiveToken(res, accessToken) {
     });
   }
 
-  console.error(
-    'Token introspection failed - token inactive. Could not decode JWT payload.'
-  );
-
+  // undecodable opaque tokens are intentionally silent unless diagnostics enabled
+  // (LOG_AUTH_DIAGNOSTICS=1 or legacy LOG_INACTIVE_TOKEN_DIAGNOSTICS=1) — generic 403 preserves no-leak behavior
   return res.status(403).json({
     message: 'User access denied - token not accepted by the identity provider',
     error: 'User not authorized'
   });
 }
 
-function logInactiveTokenDiagnostics(payload) {
-  if (process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS !== '1') {
+function logAuthDiagnostics(accessToken, context, cachedPayload) {
+  // LOG_AUTH_DIAGNOSTICS is the current name; LOG_INACTIVE_TOKEN_DIAGNOSTICS kept as deprecated alias
+  if (process.env.LOG_AUTH_DIAGNOSTICS !== '1' && process.env.LOG_INACTIVE_TOKEN_DIAGNOSTICS !== '1') {
     return;
   }
 
+  const payload = cachedPayload !== undefined ? cachedPayload : decodeJwtPayload(accessToken);
   const safeClaims = {};
-  ['iss', 'sub', 'aud', 'exp', 'iat', 'azp', 'jti'].forEach((claim) => {
-    if (payload[claim] !== undefined) {
-      safeClaims[claim] = payload[claim];
-    }
-  });
+
+  if (payload) {
+    ['iss', 'sub', 'aud', 'exp', 'iat', 'azp', 'jti'].forEach((claim) => {
+      if (payload[claim] !== undefined) {
+        safeClaims[claim] = payload[claim];
+      }
+    });
+  }
 
   console.error(
-    'Token introspection failed - token inactive. Claims:',
-    JSON.stringify(safeClaims, null, 2)
+    `Token denied (${context}).`,
+    !accessToken
+      ? 'No access token present'
+      : !payload
+        ? 'JWT payload claims: <decode failed - opaque/invalid JWT>'
+        : `JWT payload claims: ${JSON.stringify(safeClaims, null, 2)}`
   );
 }
+
+// Deprecated alias — prefer logAuthDiagnostics
+const logInactiveTokenDiagnostics = logAuthDiagnostics;
 
 export default checkUserAccessPermissions;
