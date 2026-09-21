@@ -45,7 +45,7 @@ export default function App() {
       <>
         <s-app-nav>
           {ordersFeatureEnabled && (
-            <a href="/hubUsers">Hub Users</a>
+            <s-link href="/hubUsers">Hub Users</s-link>
           )}
         </s-app-nav>
         <Routes pages={pages} />

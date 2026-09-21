@@ -14,7 +14,10 @@ export default function ExitIframe() {
 
     try {
       const url = new URL(decodeURIComponent(redirectUri));
-      if (url.hostname === window.location.hostname) {
+      if (
+        (url.protocol === 'https:' || url.protocol === 'http:') &&
+        url.hostname === window.location.hostname
+      ) {
         window.top.location.href = url.toString();
       }
     } catch {
