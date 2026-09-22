@@ -16,9 +16,10 @@ const schema = yup.object().shape({
   DATABASE_HOST_URL: yup.string(),
   SHOP_REGISTRY_DATABASE_NAME: yup.string(),
   OIDC_ISSUER: yup.string(),
-  // Optional comma-separated extra token audiences accepted for hub-issued
-  // tokens (e.g. "account,proto-dfc"). Empty/unset = strict legacy behavior:
-  // only OIDC_CLIENT_ID is accepted. See DEPLOYMENT_STRATEGY.md
+  // Optional comma-separated extra token audiences recognised in the
+  // inactive-token diagnostic (e.g. "account,proto-dfc"). Diagnostics only:
+  // does not grant access (Keycloak introspection still gates that).
+  // Empty/unset = strict legacy wording. See DEPLOYMENT_STRATEGY.md
   // "DFC trusted audiences" for the add/remove/amend procedure.
   OIDC_TRUSTED_AUDIENCES: yup.string()
 });
