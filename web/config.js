@@ -15,7 +15,12 @@ const schema = yup.object().shape({
   NODE_ENV: yup.string(),
   DATABASE_HOST_URL: yup.string(),
   SHOP_REGISTRY_DATABASE_NAME: yup.string(),
-  OIDC_ISSUER: yup.string()
+  OIDC_ISSUER: yup.string(),
+  // Optional comma-separated extra token audiences accepted for hub-issued
+  // tokens (e.g. "account,proto-dfc"). Empty/unset = strict legacy behavior:
+  // only OIDC_CLIENT_ID is accepted. See DEPLOYMENT_STRATEGY.md
+  // "DFC trusted audiences" for the add/remove/amend procedure.
+  OIDC_TRUSTED_AUDIENCES: yup.string()
 });
 
 const createConfig = () => {
@@ -37,7 +42,8 @@ const createConfig = () => {
     NODE_ENV: envVars.NODE_ENV,
     DATABASE_HOST_URL: envVars.DATABASE_HOST_URL,
     SHOP_REGISTRY_DATABASE_NAME: envVars.SHOP_REGISTRY_DATABASE_NAME,
-    OIDC_ISSUER: envVars.OIDC_ISSUER
+    OIDC_ISSUER: envVars.OIDC_ISSUER,
+    OIDC_TRUSTED_AUDIENCES: envVars.OIDC_TRUSTED_AUDIENCES
   };
 };
 

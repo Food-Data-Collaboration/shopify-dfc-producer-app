@@ -122,6 +122,23 @@ function decodeJwtPayload(accessToken) {
   }
 }
 
+// Extra audiences recognised in the inactive-token diagnostic, in addition
+// to our own clientId. OIDC_TRUSTED_AUDIENCES is comma-separated
+// (e.g. "account,proto-dfc"). Unset/empty = strict legacy behavior.
+// NOTE: this only selects which 403 diagnostic is returned. It does NOT
+// grant access: authorise() still requires introspection active:true, and
+// Keycloak only returns active when the authenticating client is in the
+// token's aud — so a hub token needs a Keycloak audience mapper adding our
+// clientId before it can proceed to user lookup. See DEPLOYMENT_STRATEGY.md
+// "DFC trusted audiences". Read per-request so tests and env reloads apply.
+function getAcceptedAudiences() {
+  const extra = (process.env.OIDC_TRUSTED_AUDIENCES || '')
+    .split(',')
+    .map((a) => a.trim())
+    .filter(Boolean);
+  return [clientId, ...extra].filter(Boolean);
+}
+
 function handleInactiveToken(res, accessToken) {
   const payload = decodeJwtPayload(accessToken);
   logAuthDiagnostics(accessToken, 'token inactive / introspected as not active', payload);
@@ -130,7 +147,9 @@ function handleInactiveToken(res, accessToken) {
     const now = Date.now() / 1000;
     const isExpired = payload.exp && payload.exp < now;
     const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud].filter(Boolean);
-    const audienceMismatch = clientId && audiences.length > 0 && !audiences.includes(clientId);
+    const acceptedAudiences = getAcceptedAudiences();
+    const audienceMismatch = acceptedAudiences.length > 0 && audiences.length > 0
+      && !audiences.some((aud) => acceptedAudiences.includes(aud));
 
     if (isExpired) {
       return res.status(403).json({
@@ -142,7 +161,7 @@ function handleInactiveToken(res, accessToken) {
     if (audienceMismatch) {
       return res.status(403).json({
         message: 'User access denied - token not accepted by the identity provider',
-        error: `Audience mismatch: token issued for "${payload.aud}" but introspected as client "${clientId}"`
+        error: `Audience mismatch: token issued for "${payload.aud}" but accepted audiences are [${acceptedAudiences.map((a) => `"${a}"`).join(', ')}]`
       });
     }
 

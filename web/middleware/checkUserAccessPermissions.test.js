@@ -277,4 +277,88 @@ describe('checkUserAccessPermissions - inactive token diagnostics', () => {
     spy.mockRestore();
     delete process.env.LOG_AUTH_DIAGNOSTICS;
   });
+
+  test('allowlisted audience passes the audience gate', async () => {
+    process.env.OIDC_TRUSTED_AUDIENCES = 'account,proto-dfc';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
+    const { res } = await callMiddleware(token);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'User access denied - token not accepted by the identity provider',
+        error: expect.stringContaining('unknown reason')
+      })
+    );
+    delete process.env.OIDC_TRUSTED_AUDIENCES;
+  });
+
+  test('allowlisted audience within an aud array passes the gate', async () => {
+    process.env.OIDC_TRUSTED_AUDIENCES = 'proto-dfc';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      aud: ['some-other-client', 'proto-dfc']
+    });
+    const { res } = await callMiddleware(token);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.stringContaining('unknown reason')
+      })
+    );
+    delete process.env.OIDC_TRUSTED_AUDIENCES;
+  });
+
+  test('non-allowlisted audience still reports mismatch when allowlist set', async () => {
+    process.env.OIDC_TRUSTED_AUDIENCES = 'proto-dfc';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
+    const { res } = await callMiddleware(token);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.stringContaining('Audience mismatch')
+      })
+    );
+    delete process.env.OIDC_TRUSTED_AUDIENCES;
+  });
+
+  test('allowlist tolerates whitespace and empty entries', async () => {
+    process.env.OIDC_TRUSTED_AUDIENCES = '  account ,, ';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
+    const { res } = await callMiddleware(token);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.stringContaining('unknown reason')
+      })
+    );
+    delete process.env.OIDC_TRUSTED_AUDIENCES;
+  });
+
+  test('expired allowlisted token still reports expiry first', async () => {
+    process.env.OIDC_TRUSTED_AUDIENCES = 'account';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) - 100, aud: 'account' });
+    const { res } = await callMiddleware(token);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'User access denied - token expired' })
+    );
+    delete process.env.OIDC_TRUSTED_AUDIENCES;
+  });
+
+  test('mismatch error names the accepted audiences', async () => {
+    process.env.OIDC_TRUSTED_AUDIENCES = 'proto-dfc';
+    mockClient.introspect.mockResolvedValue({ active: false });
+    const token = sign({ exp: Math.floor(Date.now() / 1000) + 3600, aud: 'account' });
+    const { res } = await callMiddleware(token);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.stringContaining('"fdc-producer", "proto-dfc"')
+      })
+    );
+    delete process.env.OIDC_TRUSTED_AUDIENCES;
+  });
 });
