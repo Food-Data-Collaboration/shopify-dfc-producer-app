@@ -38,3 +38,14 @@ Stores the internal data store
   - Ensure any environment-specific configurations (e.g., database URLs, API keys) are updated.
   
 ![Bildschirmfoto 2024-09-05 um 13 27 29](https://github.com/user-attachments/assets/eadf8d6a-44e8-45f6-96f5-60ae5aeb2cf9)
+
+## 2. DFC trusted audiences (hub-issued tokens)
+
+DFC routes reject tokens whose `aud` doesn't include our `OIDC_CLIENT_ID` (403 audience mismatch). Hubs calling with their own client tokens (e.g. `azp: proto-dfc`, `aud: account`) need allowlisting. Code: `web/middleware/checkUserAccessPermissions.js:getAcceptedAudiences()`.
+
+- **Required: Keycloak audience mapper.** Keycloak's introspection endpoint returns `active:false` unless the authenticating client is in the token's `aud` (upstream audience check, see keycloak/keycloak#49794). So add an audience mapper on the hub client adding our clientId to `aud`. Without this, the token never reaches user lookup no matter what the env var says.
+- **Add**: append the hub audience to `OIDC_TRUSTED_AUDIENCES` in `web/.env` (comma-separated, e.g. `account,proto-dfc`), restart. This only improves the 403 diagnostic (names the accepted set instead of crying mismatch); it does not grant access by itself.
+- **Remove**: delete the entry, restart. Diagnostic reverts to strict mismatch wording.
+- **Amend**: edit the list in place, restart. Empty/unset = strict legacy (only `OIDC_CLIENT_ID`).
+- **Verify** (with `LOG_AUTH_DIAGNOSTICS=1`, mapper applied): browser-token curl should progress `Audience mismatch` → `User not found in database` (first call auto-provisions `status=false`) → approve the `users` row → 200 with `@graph`. The middle 403 is expected, not a bug. If it stays on audience mismatch after the mapper, the mapper isn't on the token — decode the JWT payload and check `aud` before touching code.
+- **Rollback**: unset the var and/or remove the mapper, restart.
