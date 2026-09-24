@@ -9,8 +9,8 @@ module.exports = {
   testEnvironment: 'node',
   testPathIgnorePatterns: ['/node_modules/', 'acceptance-tests', 'e2e'],
   moduleNameMapper: {
-    '@datafoodconsortium/connector': require.resolve(
-      '@datafoodconsortium/connector'
+    '@fooddatacollaboration/linkml-connector': require.resolve(
+      '@fooddatacollaboration/linkml-connector'
     )
   }
 };

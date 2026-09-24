@@ -41,7 +41,15 @@ const createOrUpdateOrderLine = async (req, res) => {
 };
 
 async function getProductId(dfcLine) {
-  return ids.extract(await (await (await dfcLine.getOffer()).getOfferedItem()).getSemanticId());
+  const concerns = Array.isArray(dfcLine.concerns) ? dfcLine.concerns : [dfcLine.concerns].filter(Boolean);
+  const offer = concerns[0];
+  const resolvedOffer = typeof offer === 'string' ? null : offer;
+  const offers = resolvedOffer && Array.isArray(resolvedOffer.offers)
+    ? resolvedOffer.offers
+    : [resolvedOffer?.offers].filter(Boolean);
+  const product = offers[0];
+  const semanticId = typeof product === 'string' ? product : product?.semanticId;
+  return ids.extract(semanticId || dfcLine.semanticId);
 }
 
 function figureOutExternalLineIdForProduct(lineItemIdMappings, productId) {

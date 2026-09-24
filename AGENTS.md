@@ -31,18 +31,19 @@
 - DFC middleware varies by route: enterprise detail and SuppliedProducts use `populateShop` → `checkUserAccessPermissions` → `checkScopePermissions`; Orders also adds `checkOrdersFeature`; the enterprise collection omits shop/scope checks, and Portals currently uses only `populateShop`.
 - Modules: `web/fdc-modules/{orders,enterprises,products,portals}` (controllers + `dfc/` transforms), `web/api-modules/{products,users,shop}`, `web/legacy-fdc-modules/`.
 - DB multi-tenant: central `shop_registry` → per-shop pools via `web/database/connect.js:getShopDbConnection(shopId)`, SSL `rejectUnauthorized:false`. Schema per module (`web/database/{shop_registry,orders,portals,users,...}/schema.sql`); `migrations.sql` + `auto-timestamp.sql`.
-- Connector singleton `web/connector/index.js` — lazy, cached. Loads 4 JSON thesauri (`facets/measures/productTypes/vocabulary`) via `import ... with {type:'json'}`. Sets `exporter.outputContext` to `DFC_CONTEXT_W3ID`; `dfcContext.js:normalizeContext()` swaps wordpress `context_1.16.0.jsonld` ↔ `w3id.org` on import.
+- Connector singleton `web/connector/index.js` — lazy, cached `new Connector()` (bundled v2 taxonomies, no init files).
 - Frontend `web/frontend/` — Vite + React + Polaris, `vite build` → `web/frontend/dist`, served by Express static. `dev_embed.js` for Shopify.
 - Docker `Dockerfile` copies only `web/`, deletes `yarn.lock` (`RUN rm yarn.lock`) then `yarn` + frontend build. CI `build-and-deploy.yml` (reusable, pushes `ghcr.io`), `deploy-staging.yml` (staging branch), `deploy-main.yml` (main). CI runs Playwright only (`frontend-test` gates Docker build); jest is not in CI.
 
-## Connector `@datafoodconsortium/connector` (1.0.0-beta.2, pinned exact)
+## Connector `@fooddatacollaboration/linkml-connector` (v2.0.1, `file:` dep)
 
-- Installed at root and `web/` as `1.0.0-beta.2`. Import `@datafoodconsortium/connector` (not `linkml-connector` — that's `linkml-connector` branch with `v2.0.0` breaking API).
-- Creation: `new Order({connector, semanticId, ...})` / `connector.createQuantity({value, hasUnit})` / `connector.createOffer({semanticId, offeredItem})`.
-- Access via getters: `getSemanticId()`, `getOrderStatus()`, `getQuantity()`, `line.getOffer().getOfferedItem()`.
-- Vocab: `connector.VOCABULARY.STATES.ORDERSTATE.*`, `connector.MEASURES.UNIT.CURRENCYUNIT.*` (wrap via `web/utils/currencyMeasureFor.js`).
-- `connector.export(array)` → JSON-LD string, `connector.import(string)` async → array (filter `instanceof Order/OrderLine/SaleSession`).
-- Beta.2 quirks: blank nodes `_:bN` (old staging `beta.2` republish used `_:_:bN`); `orderStatus`/`fulfilmentStatus` may be plain string vs `{"@id":...}` — see `normalizeContext`; `HOST` must be explicit in semanticIds (`config.HOST`).
+- Local package at `../DFC-LinkML/typescript-connector`, wired via `file:` in root + `web/package.json`. Import `@fooddatacollaboration/linkml-connector`. Needs Node ≥20 (shell may default to 18 — use nodenv 24 for `web/` installs).
+- Singleton `web/connector/index.js` is just `new Connector()` — v2.0.0 taxonomies bundle in the constructor. No thesaurus loading (deleted `web/connector/thesaurus/`, `dfcContext.js`).
+- Creation: `connector.createX(semanticId, params)` or `createX({semanticId, ...})` / `new X(semanticId, params)`. Blank-node ids by hand (`_:bN`, `_:qty_N` counters).
+- Field access, not getters: `o.semanticId`, `o.hasOrderStatus`, `o.quantity`, `line.concerns`, `offer.offers` (string ids or resolved objects — handle both).
+- Vocab as compact URIs (no `MEASURES`/`VOCABULARY`): `dfc-v:Held/Complete/Fulfilled/Unfulfilled/Combine`, `dfc-m:Kilogram/Piece/Euro/PoundSterling/USDollar` (`web/utils/currencyMeasureFor.js` maps codes).
+- `connector.export(...)` spread → JSON string (async); `connector.import(string|object)` sync → array. No context juggling — `@context` always the v2 URL string.
+- Known gaps: v2 `Price` has no value/unit (only `vatRate` survives); `SuppliedProduct` has `hasVariant` but no `isVariantOf` (registered manually via `registerSemanticProperty`); product types come from bundled v2 taxonomy (`dfc-pt:` notations) via `web/utils/productTypes.js` — v1 ids stored in DB may not resolve.
 
 ## Tests
 
@@ -56,4 +57,4 @@
 - `HOST` trailing slash matters for products/orders (`${config.HOST}api/dfc/...` in `productUtils.js`, `dfc-order.js`); portals/scopes strip it via `.replace(/\/+$/,'')`. Ensure `.env` HOST ends with `/`.
 - `web/database/build.js` requires existing `SHOP_REGISTRY_DATABASE_NAME` DB; `DATABASE_HOST_URL` without db name.
 - Frontend changes need rebuild before `npm run test:e2e` (without `:build`).
-- `linkml-connector` branch API differs (field access, spread export, compact URIs) — don't apply main-branch connector patterns there.
+- Stale `linkml-connector` branch holds a v2.0.0 migration against May-2026 code (91 commits behind) — reference only, don't cherry-pick blindly.

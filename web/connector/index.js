@@ -1,9 +1,4 @@
-import {Connector} from '@datafoodconsortium/connector';
-import facets from './thesaurus/facets.json' with { type: 'json' };
-import measures from './thesaurus/measures.json' with { type: 'json' };
-import productTypes from './thesaurus/productTypes.json' with { type: 'json' };
-import vocabulary from './thesaurus/vocabulary.json' with { type: 'json' };
-import { DFC_CONTEXT_W3ID } from './dfcContext.js';
+import { Connector } from '@fooddatacollaboration/linkml-connector';
 import { throwError } from '../utils/index.js';
 
 let _connector;
@@ -12,17 +7,10 @@ let connected = false;
 export default async () => {
   try {
     if (!connected) {
+      // LinkML connector ships bundled v2.0.0 taxonomies, loaded
+      // synchronously by the constructor — no thesaurus loading needed.
+      // Export @context is always the versioned URL string.
       const connector = new Connector();
-      const resourcePromisesArray = [
-        connector.loadFacets(JSON.stringify(facets)),
-        connector.loadMeasures(JSON.stringify(measures)),
-        connector.loadProductTypes(JSON.stringify(productTypes)),
-        connector.loadVocabulary(JSON.stringify(vocabulary))
-      ];
-      await Promise.all(resourcePromisesArray);
-
-      connector.exporter.outputContext = DFC_CONTEXT_W3ID;
-
       connected = true;
       _connector = connector;
       return _connector;

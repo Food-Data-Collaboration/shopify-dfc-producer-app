@@ -326,11 +326,17 @@ export async function completeDraftOrder(client, orderId) {
 }
 
 export async function dfcLineToShopifyLine(dfcLine) {
-  const offer = await dfcLine.getOffer();
-  const product = await offer.getOfferedItem();
+  const concerns = Array.isArray(dfcLine.concerns) ? dfcLine.concerns : [dfcLine.concerns].filter(Boolean);
+  const offer = concerns[0];
+  const resolvedOffer = typeof offer === 'string' ? null : offer;
+  const offers = resolvedOffer && Array.isArray(resolvedOffer.offers)
+    ? resolvedOffer.offers
+    : [resolvedOffer?.offers].filter(Boolean);
+  const product = offers[0];
+  const semanticId = typeof product === 'string' ? product : product?.semanticId;
   return {
-    variantId: ids.variant(ids.extract(product.getSemanticId())),
-    quantity: dfcLine.getQuantity()
+    variantId: ids.variant(ids.extract(semanticId || dfcLine.semanticId)),
+    quantity: dfcLine.quantity
   };
 }
 
@@ -346,10 +352,18 @@ export async function createUpdatedShopifyLines(draftOrder, dfcOrderLine) {
     async (accumulator, shopifyOutputLine) => {
       const { lines, hasBeenReplacement } = await accumulator;
 
-      const offer = await dfcOrderLine.getOffer();
-      const product = await offer.getOfferedItem();
+      const concerns = Array.isArray(dfcOrderLine.concerns)
+        ? dfcOrderLine.concerns
+        : [dfcOrderLine.concerns].filter(Boolean);
+      const offer = concerns[0];
+      const resolvedOffer = typeof offer === 'string' ? null : offer;
+      const offers = resolvedOffer && Array.isArray(resolvedOffer.offers)
+        ? resolvedOffer.offers
+        : [resolvedOffer?.offers].filter(Boolean);
+      const product = offers[0];
+      const semanticId = typeof product === 'string' ? product : product?.semanticId;
 
-      if (ids.extract(shopifyOutputLine.variant.id) === ids.extract(await product.getSemanticId())) {
+      if (ids.extract(shopifyOutputLine.variant.id) === ids.extract(semanticId || dfcOrderLine.semanticId)) {
         return { lines: [...lines, await dfcLineToShopifyLine(dfcOrderLine)], hasBeenReplacement: true };
       }
       return { lines: [...lines, shopifyOutputLineToInputLine(shopifyOutputLine)], hasBeenReplacement };

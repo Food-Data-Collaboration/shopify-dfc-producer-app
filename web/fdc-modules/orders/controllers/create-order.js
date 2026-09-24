@@ -30,15 +30,18 @@ const createOrder = async (req, res) => {
       req.body
     );
 
+    const orderLines = Array.isArray(order.hasPart)
+      ? order.hasPart
+      : [order.hasPart].filter(Boolean);
     const shopifyLines = await Promise.all(
-      (await order.getLines()).map(orders.dfcLineToShopifyLine)
+      orderLines.map(orders.dfcLineToShopifyLine)
     );
 
     const shopifyDraftOrder = await orders.createShopifyOrder(
       client,
       customerId,
       req.user.email,
-      new Date(saleSession.getEndDate()),
+      new Date(saleSession.endDate),
       shopifyLines
     );
 
@@ -49,7 +52,7 @@ const createOrder = async (req, res) => {
     );
     await createSalesSession(
       ids.extract(shopifyDraftOrder.id),
-      saleSession.getEndDate(),
+      saleSession.endDate,
       req.params.EnterpriseName
     );
     const lineItemIdMappings = await persistLineIdMappings(

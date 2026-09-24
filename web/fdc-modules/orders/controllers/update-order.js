@@ -1,4 +1,3 @@
-import loadConnectorWithResources from '../../../connector/index.js';
 import * as database from '../../../database/orders/orders.js';
 import { loadSalesSession } from '../../../database/sales_sessions/salesSessions.js';
 import shopify from '../../../shopify.js';
@@ -50,7 +49,7 @@ const updateOrder = async (req, res) => {
 
     const order = await extractOrderAndLines(req.body);
 
-    if (ids.extract(await order.getSemanticId()) !== req.params.id) {
+    if (ids.extract(order.semanticId) !== req.params.id) {
       return res.status(400).send('ID does not match payload');
     }
 
@@ -95,24 +94,22 @@ const updateOrder = async (req, res) => {
 };
 
 async function updateShopifyDraftOrder(client, order, reservationDate, enterprise) {
-  const dfcLines = await order.getLines();
+  const dfcLines = Array.isArray(order.hasPart)
+    ? order.hasPart
+    : [order.hasPart].filter(Boolean);
 
   const shopifyLines = (
     await Promise.all(dfcLines.map(shopifyOrders.dfcLineToShopifyLine))
   ).filter(({ quantity }) => quantity > 0);
 
-  const orderId = ids.extract(await order.getSemanticId());
+  const orderId = ids.extract(order.semanticId);
   const shopifyDraftOrder = await shopifyOrders.updateOrder(
     client,
     orderId,
     reservationDate,
     shopifyLines
   );
-  const connector = await loadConnectorWithResources();
-  if (
-    (await order.getOrderStatus()) ===
-    connector.VOCABULARY.STATES.ORDERSTATE.COMPLETE
-  ) {
+  if (order.hasOrderStatus === 'dfc-v:Complete') {
     const completedOrder = await retry(() => shopifyOrders.completeDraftOrder(
       client,
       orderId
