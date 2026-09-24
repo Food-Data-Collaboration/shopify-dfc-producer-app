@@ -1362,7 +1362,7 @@
   integrity sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==
 
 "@fooddatacollaboration/linkml-connector@file:../DFC-LinkML/typescript-connector":
-  version "2.0.1"
+  version "2.0.0"
 
 "@gar/promisify@^1.0.1":
   version "1.1.3"

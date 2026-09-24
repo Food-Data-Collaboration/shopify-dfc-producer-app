@@ -2,6 +2,7 @@ import { OrderLine, Order, SaleSession } from '@fooddatacollaboration/linkml-con
 import loadConnectorWithResources from '../../../connector/index.js';
 import * as ids from '../controllers/shopify/ids.js';
 import config from '../../../config.js';
+import currencyMeasureFor from '../../../utils/currencyMeasureFor.js';
 
 let _idCounter = 0;
 const nextBlankId = () => `_:b${++_idCounter}`;
@@ -95,13 +96,18 @@ function createOrderLine(
     line.variant.id
   )}`;
 
-  const offer = connector.createOffer(madeUpIdForTheOfferSoTheConnectorWorks, {
-    offers: suppliedProduct.semanticId
+  const { amount, currencyCode } = line.originalUnitPriceSet.shopMoney;
+
+  // Price extends QuantitativeValue in v2 (value + currency unit + vatRate).
+  const price = connector.createPrice(nextBlankId(), {
+    value: amount,
+    hasUnit: currencyMeasureFor(connector, currencyCode),
+    vatRate: 0
   });
 
-  // NOTE: v2 Price has no value/unit fields — amount/currency do not survive.
-  const price = connector.createPrice(nextBlankId(), {
-    vatRate: 0
+  const offer = connector.createOffer(madeUpIdForTheOfferSoTheConnectorWorks, {
+    offers: suppliedProduct.semanticId,
+    hasPrice: price.semanticId
   });
 
   return [

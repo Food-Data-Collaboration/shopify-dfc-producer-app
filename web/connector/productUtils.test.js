@@ -43,6 +43,8 @@ describe('createVariantSuppliedProduct', () => {
 
     expect(result[1].hasPrice).toBe(result[3].semanticId);
     expect(result[3].vatRate).toBe(1.0);
+    expect(result[3].value).toBe('2.49');
+    expect(result[3].hasUnit).toBe('dfc-m:PoundSterling');
   });
 
   it('catalogue will have stock limitation -1 when inventory policy is to continue selling, regardless of inventory quantity', async () => {

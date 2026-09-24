@@ -1,5 +1,6 @@
 import { SuppliedProduct } from '@fooddatacollaboration/linkml-connector';
 import config from '../config.js';
+import currencyMeasureFor from '../utils/currencyMeasureFor.js';
 import { throwError } from '../utils/index.js';
 import { fetchProductTypeById } from '../utils/productTypes.js';
 import loadConnectorWithResources from './index.js';
@@ -13,9 +14,8 @@ const createQuantitativeValue = (connector, value, unit) =>
     hasUnit: unit
   });
 
-// NOTE: v2 Price has no value/unit fields — only vatRate survives the migration.
-const createPrice = (connector, vatRate) =>
-  connector.createPrice(`_:price_${++_qtyCounter}`, { vatRate });
+const createPrice = (connector, value, unit, vatRate) =>
+  connector.createPrice(`_:price_${++_qtyCounter}`, { value, hasUnit: unit, vatRate });
 
 const createOffer = (connector, semanticId, price) =>
   connector.createOffer(`${semanticId}/Offer`, {
@@ -53,7 +53,12 @@ async function createVariantSuppliedProduct(
       kilogram
     );
     const hasVat = variant.taxable ? 1.0 : 0.0; // TODO check how the vat rate can be added
-    const price = createPrice(connector, hasVat);
+    const price = createPrice(
+      connector,
+      variant.price,
+      currencyMeasureFor(connector, variant.currencyCode),
+      hasVat
+    );
     const offer = createOffer(connector, semanticBase, price);
     const inventoryQuantity =
       variant.inventoryPolicy === 'continue' ? -1 : variant.inventoryQuantity;
