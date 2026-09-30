@@ -24,12 +24,51 @@
 ## Architecture
 
 - Entrypoint `web/app.js` (Express). Routes:
-  - `/api/dfc/Enterprises/:EnterpriseName/{Orders,SuppliedProducts,Portals}` — DFC API. Body parsing differs per route: Orders + enterprise detail use `express.text({type:'*/json'})`, SuppliedProducts uses `express.json()`, Portals uses `express.json({type:['application/json','application/ld+json']})`
+  - `/api/dfc/Enterprises/:EnterpriseName/{Orders,SuppliedProducts,Portals}` — DFC API. Body parsing differs per route: Orders + enterprise detail use `express.text({type:'*/json'})`, SuppliedProducts uses `express.json({type:['application/json','application/ld+json','text/json']})` so hubs can POST JSON-LD, Portals uses `express.json({type:['application/json','application/ld+json']})`
   - `/api/{products,hub-users,shop}` — Shopify-session APIs (`shopify.validateAuthenticatedSession()` + `checkOnlineSession`)
   - `/fdc` — legacy (`web/legacy-fdc-modules/`)
   - `/api/scopes` — unauthenticated
+  - `/profile` — unauthenticated WebID self-description (`web/fdc-modules/profile.js`)
 - DFC middleware varies by route: enterprise detail and SuppliedProducts use `populateShop` → `checkUserAccessPermissions` → `checkScopePermissions`; Orders also adds `checkOrdersFeature`; the enterprise collection omits shop/scope checks, and Portals currently uses only `populateShop`.
 - Modules: `web/fdc-modules/{orders,enterprises,products,portals}` (controllers + `dfc/` transforms), `web/api-modules/{products,users,shop}`, `web/legacy-fdc-modules/`.
+
+## LDP surface
+
+The DFC API is a Linked Data Platform dataserver, modelled on the DjangoLDP
+reference at `../FDC-DjangoLDP-Central-Directory` (real behaviour lives in
+`../sib/djangoldp-data-food-consortium`). Pure dataserver: no inbound
+federation, no proxy-import, no CSV import, no persons container.
+
+- `web/fdc-modules/ldp/index.js` — shared helpers every DFC route uses:
+  `ldp:Container`/`ldp:contains` envelopes, `Link`/`Accept-Post`/`Accept-Patch`
+  headers, ETag, RFC 7232 `If-Match`/`If-None-Match`, RFC 7240
+  `Prefer: return=minimal`, RFC 7807 problems, `OPTIONS`, `parseLdpBody`
+  (Orders/Enterprises bodies arrive as raw strings from `express.text`).
+  Use these rather than hand-rolling JSON-LD in a controller.
+- `web/fdc-modules/scopes/matrix.js` — the **only** place the route × method ×
+  scope table lives, plus a documented matrix in its header comment. Member
+  paths inherit their container's row. `checkScopePermissions` imports
+  `getRequiredScope` from here; it rejoins `baseUrl + path` first, because on an
+  `app.use` mount express strips the mount and `req.route` is undefined.
+- Readable: `/api/dfc/Enterprises` (container) and its members. **Enterprises are
+  read-only** — an enterprise *is* a Shopify shop, so writing one is an
+  app install/uninstall; the other verbs answer 405 with `Allow`.
+- Writable: `SuppliedProducts` — POST publishes an existing Shopify variant
+  (creates the `fdc_variants` row), PUT/PATCH update the mapped variant,
+  DELETE **unpublishes** (drops the mapping, never the Shopify product). Gated by
+  `WriteProducts`. v1 payloads are rejected with 415, not coerced.
+- Orders keep the existing custom CRUD; LDP framing only (`web/fdc-modules/orders/ldp.js`).
+  DjangoLDP has no Order model, so there is nothing to mirror structurally.
+  `POST /Orders` stays **200** (live hubs assert it) and gains a `Location` header.
+- Member URIs are minted from the Shopify **variant** id
+  (`…/SuppliedProducts/{variantId}`) and are stable for the variant's life,
+  because `fdc_variants.retail_variant_id` is the anchor. Beware: the *route*
+  param `ProductId` is a Shopify **product** id — pre-existing mismatch.
+- The `dfc_overflow` JSONB column from the original plan is **not needed**:
+  the writable field surface is deliberately narrow, so there is nothing to
+  overflow. If the surface is widened later, revisit.
+- Shopify GraphQL writes live in `web/fdc-modules/products/controllers/shopify/mutations.js`;
+  `Shopify userErrors` are translated to 422, not 500.
 - DB multi-tenant: central `shop_registry` → per-shop pools via `web/database/connect.js:getShopDbConnection(shopId)`, SSL `rejectUnauthorized:false`. Schema per module (`web/database/{shop_registry,orders,portals,users,...}/schema.sql`); `migrations.sql` + `auto-timestamp.sql`.
 - Connector singleton `web/connector/index.js` — lazy, cached `new Connector()` (bundled v2 taxonomies, no init files).
 - Frontend `web/frontend/` — Vite + React + Polaris, `vite build` → `web/frontend/dist`, served by Express static. `dev_embed.js` for Shopify.
@@ -52,6 +91,7 @@
 
 - Jest `jest.config.js` (`ts-jest` + `babel-jest`, `transformIgnorePatterns:[]`, `testPathIgnorePatterns:['/node_modules/','acceptance-tests','e2e']`, `moduleNameMapper` resolves connector). `test-setup.js` closes `pool` after all.
 - Mix `.spec.js`/`.test.js`. DB-dependent tests (`web/database/*`, `lineItemMappings.spec.js`) fail without Postgres.
+- LDP suites: `web/fdc-modules/{ldp,scopes,profile,products,orders}/*.spec.js` — all DB-free. `products/ldp.spec.js` mocks `shopify.js`, `getShopifySession.js` and the variants table, so it needs neither. In specs, read member URIs from `config.HOST` (`web/.env` sets it to `http://localhost:3629/`), and mock the Shopify client with a class *inside* the `jest.mock` factory since jest hoists the call.
 - E2E: Playwright `playwright.config.js` (workers 1, `baseURL http://localhost:3080`, `global-setup/teardown`, `webServer` spawns `node index.js` in `web/` with `MOCK_BRIDGE=1`, `SHOPIFY_API_KEY=test-mock-key`). Needs `yarn --cwd web/frontend build` first unless using `test:e2e:build`.
 
 ## Gotchas

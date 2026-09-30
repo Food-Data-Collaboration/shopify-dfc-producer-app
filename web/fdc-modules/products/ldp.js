@@ -99,7 +99,8 @@ const graphForMappings = async (req, fdcVariantsFromDB) => {
     return { '@context': V2_CONTEXT, members: [] };
   }
 
-  const { EnterpriseName, shopDefaultProductType } = req;
+  const { EnterpriseName } = req.params;
+  const { shopDefaultProductType } = req;
   const client = await clientFor(EnterpriseName);
   const fdcProducts = await findFDCProducts(client, Object.keys(fdcVariantsFromDB));
 
@@ -119,9 +120,20 @@ const graphForMapping = async (req, mapping) => {
     mapping.productId,
     req.shopName || req.params.EnterpriseName
   );
+
   const { members } = await graphForMappings(req, fdcVariantsFromDB);
   return members;
 };
+
+/**
+ * The response body for a member, and the ETag over it. Both the read and the
+ * write paths go through this so the ETag a hub is handed is always the ETag of
+ * the bytes it would get back — otherwise `If-None-Match` and `If-Match` never
+ * match and every conditional request degrades to an unconditional one.
+ */
+const memberBody = (members) => ({ '@context': V2_CONTEXT, '@graph': members });
+
+const memberEtag = (members) => etagFor(JSON.stringify(memberBody(members), null, 2));
 
 /** The member description for one variant within a built graph. */
 const memberForVariant = (members, variantId) =>
@@ -138,6 +150,20 @@ const currencyForUnit = (unit) => {
     'dfc-m:PoundSterling': 'GBP',
     'dfc-m:USDollar': 'USD'
   }[measure] || null;
+};
+
+/** Flatten a JSON-LD document into its member descriptions. */
+const rawMembersOf = (body) => {
+  if (Array.isArray(body)) {
+    return body;
+  }
+
+  const { '@graph': graph, ...rest } = body;
+
+  if (!graph) {
+    return [rest];
+  }
+  return Array.isArray(graph) ? graph : [graph];
 };
 
 /**
@@ -178,7 +204,11 @@ const extractSuppliedProduct = async (req) => {
   }
 
   return {
-    raw: body,
+    // The wire-form members, which is where the fields we write from are read
+    // out. The connector's import drops anything not modelled in v2 (notably
+    // `isVariantOf`, which we register manually only for *export*), so a hub's
+    // parent link is only visible in the raw document.
+    rawMembers: rawMembersOf(body),
     suppliedProduct: suppliedProducts[0],
     graph: Array.isArray(imported) ? imported : [imported]
   };
@@ -235,7 +265,7 @@ const WRITABLE_PREDICATES = ['dfc-b:name', 'dfc-b:description', 'dfc-b:image'];
  * expect.
  */
 const getProducts = async (req, res) => {
-  const { EnterpriseName } = req;
+  const { EnterpriseName } = req.params;
   const fdcVariantsFromDB = await getFdcVariantsFromDB(EnterpriseName);
   const { members } = await graphForMappings(req, fdcVariantsFromDB);
 
@@ -255,7 +285,7 @@ const getProducts = async (req, res) => {
 
 /** `GET /SuppliedProducts/{id}` — a single member, with conditional-GET support. */
 const getProduct = async (req, res) => {
-  const { EnterpriseName, ProductId } = req;
+  const { EnterpriseName, ProductId } = req.params;
 
   const fdcVariantsFromDB = await getFdcVariantsByProductIdFromDB(
     ProductId,
@@ -270,7 +300,8 @@ const getProduct = async (req, res) => {
   }
 
   const { members } = await graphForMappings(req, fdcVariantsFromDB);
-  const etag = etagFor(members);
+  const location = suppliedProductMemberUri(EnterpriseName, ProductId);
+  const etag = memberEtag(members);
 
   const precondition = checkPreconditions(req, etag);
   if (precondition) {
@@ -281,10 +312,7 @@ const getProduct = async (req, res) => {
     return sendProblem(req, res, precondition.status, precondition);
   }
 
-  return sendLdp(req, res, 200, { '@context': V2_CONTEXT, '@graph': members }, {
-    member: true,
-    location: suppliedProductMemberUri(EnterpriseName, ProductId)
-  });
+  return sendLdp(req, res, 200, memberBody(members), { member: true, location });
 };
 
 /**
@@ -296,8 +324,9 @@ const getProduct = async (req, res) => {
  * dangling mapping.
  */
 const publishSuppliedProduct = async (req, res) => {
-  const { EnterpriseName, shopName } = req;
-  const { raw, suppliedProduct } = await extractSuppliedProduct(req);
+  const { EnterpriseName } = req.params;
+  const { shopName } = req;
+  const { rawMembers, suppliedProduct } = await extractSuppliedProduct(req);
 
   const variantId = variantIdFromMemberUri(suppliedProduct.semanticId);
 
@@ -318,9 +347,10 @@ const publishSuppliedProduct = async (req, res) => {
     );
   }
 
-  const parentId = variantIdFromMemberUri(
-    suppliedProduct.isVariantOf || raw['dfc-b:isVariantOf']
-  );
+  const parentId = variantIdFromMemberUri(suppliedProduct.isVariantOf)
+    || variantIdFromMemberUri(
+      rawMembers.find((m) => m['@id'] === suppliedProduct.semanticId)?.['dfc-b:isVariantOf']
+    );
   if (!parentId || !/^\d+$/.test(parentId)) {
     throw fail(
       'Payload must carry dfc-b:isVariantOf naming the parent product',
@@ -377,9 +407,16 @@ const publishSuppliedProduct = async (req, res) => {
  * separate code paths.
  */
 const applyUpdate = async (req, res, { partial }) => {
-  const { EnterpriseName, shopName, ProductId } = req;
+  const { EnterpriseName, ProductId } = req.params;
+  const { shopName } = req;
 
-  const { raw, suppliedProduct, graph } = await extractSuppliedProduct(req);
+  const { rawMembers, suppliedProduct, graph } = await extractSuppliedProduct(req);
+
+  // The member's own wire description, so a payload carrying extra members
+  // (a Price, an Offer) does not confuse which fields belong to the product.
+  const wireMember = rawMembers.find(
+    (m) => m['@id'] === suppliedProduct.semanticId
+  ) || {};
 
   if (variantIdFromMemberUri(suppliedProduct.semanticId) !== String(ProductId)) {
     throw fail(
@@ -402,7 +439,7 @@ const applyUpdate = async (req, res, { partial }) => {
   // with the ETag it was handed, which prevents a lost update when two hubs
   // write concurrently.
   const currentMembers = await graphForMapping(req, mapping);
-  const currentEtag = etagFor(currentMembers);
+  const currentEtag = memberEtag(currentMembers);
   const precondition = checkPreconditions(req, currentEtag);
   if (precondition) {
     if (precondition.status === 304) {
@@ -412,9 +449,9 @@ const applyUpdate = async (req, res, { partial }) => {
     return sendProblem(req, res, precondition.status, precondition);
   }
 
-  const name = raw['dfc-b:name'];
-  const description = raw['dfc-b:description'];
-  const image = raw['dfc-b:image'];
+  const name = wireMember['dfc-b:name'];
+  const description = wireMember['dfc-b:description'];
+  const image = wireMember['dfc-b:image'];
 
   const price = findPriceIn(graph);
   const priceValue = price && price.value !== undefined && price.value !== null
@@ -476,7 +513,8 @@ const patchSuppliedProduct = (req, res) => applyUpdate(req, res, { partial: true
 
 /** `DELETE /SuppliedProducts/{id}` — unpublish; see the module comment. */
 const unpublishSuppliedProduct = async (req, res) => {
-  const { EnterpriseName, shopName, ProductId } = req;
+  const { EnterpriseName, ProductId } = req.params;
+  const { shopName } = req;
 
   const mapping = await findMapping(ProductId, shopName);
   if (!mapping) {

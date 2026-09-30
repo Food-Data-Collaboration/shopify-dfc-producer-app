@@ -81,9 +81,13 @@ export const graphToMembers = (graph) => {
 
   const { '@context': context, '@graph': members, ...rest } = parsed;
 
+  if (!members) {
+    return { '@context': context, members: [rest] };
+  }
+
   return {
     '@context': context,
-    members: members ? (Array.isArray(members) ? members : [members]) : [rest]
+    members: Array.isArray(members) ? members : [members]
   };
 };
 
@@ -192,26 +196,6 @@ export const preferReturn = (req) => {
 };
 
 /**
- * RFC 7807 problem document. DFC hubs expect JSON-LD on success and treat
- * anything else as an opaque failure, but a machine-readable problem shape
- * (rather than a bare `.end()`) is what makes 401/403/412 debuggable.
- */
-export const sendProblem = (req, res, status, { title, detail, type } = {}) => {
-  const problem = {
-    type: type || 'about:blank',
-    title: title || res.phrase || 'Error',
-    status,
-    detail
-  };
-
-  if (req?.params?.EnterpriseName) {
-    problem.enterprise = `${containerUri('api/dfc/Enterprises', req.params.EnterpriseName)}`;
-  }
-
-  return sendLdp(req, res, status, problem);
-};
-
-/**
  * Send a JSON-LD body and decorate it with the LDP protocol headers.
  *
  * @param {object} options
@@ -283,11 +267,39 @@ export const sendGraph = (req, res, graph, options = {}) =>
   sendLdp(req, res, options.status || 200, graph, options);
 
 /** `Prefer: return=minimal` collapses a successful write to `204 + Location`. */
-export const sendWriteResult = (req, res, { status = 200, body, location, ...options }) => {
+export const sendWriteResult = (req, res, options = {}) => {
+  const {
+    status = 200, body, location, ...rest
+  } = options;
+
   if (preferReturn(req) === 'minimal') {
-    return sendLdp(req, res, 204, '', { ...options, location, preferenceApplied: 'return=minimal' });
+    return sendLdp(req, res, 204, '', {
+      ...rest,
+      location,
+      preferenceApplied: 'return=minimal'
+    });
   }
-  return sendLdp(req, res, status, body, { ...options, location });
+  return sendLdp(req, res, status, body, { ...rest, location });
+};
+
+/**
+ * RFC 7807 problem document. DFC hubs expect JSON-LD on success and treat
+ * anything else as an opaque failure, but a machine-readable problem shape
+ * (rather than a bare `.end()`) is what makes 401/403/412 debuggable.
+ */
+export const sendProblem = (req, res, status, { title, detail, type } = {}) => {
+  const problem = {
+    type: type || 'about:blank',
+    title: title || res.phrase || 'Error',
+    status,
+    detail
+  };
+
+  if (req?.params?.EnterpriseName) {
+    problem.enterprise = containerUri('api/dfc/Enterprises', req.params.EnterpriseName);
+  }
+
+  return sendLdp(req, res, status, problem);
 };
 
 /**
@@ -327,6 +339,17 @@ export const parseLdpBody = (req) => {
   throw error;
 };
 
+/** The verbs an LDP container or member accepts, for the `Allow` header. */
+const allowedMethods = ({ container, writable }) => {
+  if (container) {
+    return ['GET', 'POST', 'HEAD', 'OPTIONS'];
+  }
+  if (writable) {
+    return ['GET', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+  }
+  return ['GET', 'HEAD', 'OPTIONS'];
+};
+
 /**
  * `OPTIONS` handler. DjangoLDP answers the preflight itself rather than
  * letting DRF fall through to schema advertisement, so hub clients get
@@ -335,11 +358,7 @@ export const parseLdpBody = (req) => {
 export const ldpOptions = ({ container, writable }) => {
   // Order matches DjangoLDP: read/create on a container, the write verbs then
   // HEAD/OPTIONS on a member.
-  const allow = container
-    ? ['GET', 'POST', 'HEAD', 'OPTIONS']
-    : (writable
-      ? ['GET', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
-      : ['GET', 'HEAD', 'OPTIONS']);
+  const allow = allowedMethods({ container, writable });
 
   return (req, res) => {
     res.set('Allow', allow.join(', '));
@@ -378,6 +397,7 @@ export const withLdpErrors = (handler) => async (req, res, next) => {
     }
     const status = error.status || 500;
     if (status >= 500) {
+      // eslint-disable-next-line no-console
       console.error(`LDP ${req.method} ${req.originalUrl || req.url} failed`, error);
     }
     return sendProblem(req, res, status, {
