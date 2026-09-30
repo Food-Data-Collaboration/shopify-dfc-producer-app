@@ -9,6 +9,8 @@ import {
 import { persistLineIdMappings } from './lineItemMappings.js';
 import * as ids from './shopify/ids.js';
 import * as shopifyOrders from './shopify/orders.js';
+import { orderForbidden, orderNotFound, sendOrderWrite } from '../ldp.js';
+import { sendProblem, withLdpErrors } from '../../ldp/index.js';
 
 async function retry(fn, retries = 3, delayMs = 1000) {
   let attempt = 0;
@@ -26,71 +28,67 @@ async function retry(fn, retries = 3, delayMs = 1000) {
 }
 
 const updateOrder = async (req, res) => {
-  try {
-    console.log('updating order with body:>> ', req.body);
-    console.log('updating order with params :>> ', req.params);
+  const orderMetadata = await database.getOrder(
+    req.params.id,
+    req.user.id,
+    req.params.EnterpriseName
+  );
 
-    const orderMetadata = await database.getOrder(
-      req.params.id,
-      req.user.id,
-      req.params.EnterpriseName
-    );
-
-    if (!orderMetadata) {
-      return res
-        .status(403)
-        .send('You do not have permission to act on this order');
-    }
-
-    const session = await getSession(
-      `${req.params.EnterpriseName}.myshopify.com`
-    );
-    const client = new shopify.api.clients.Graphql({ session });
-
-    const order = await extractOrderAndLines(req.body);
-
-    if (ids.extract(order.semanticId) !== req.params.id) {
-      return res.status(400).send('ID does not match payload');
-    }
-
-    const { order: shopifyOrder } = await shopifyOrders.findOrder(
-      client,
-      req.params.id,
-      {}
-    );
-
-    if (!shopifyOrder) {
-      return res.status(404).send('Unable to find order');
-    }
-
-    const salesSession = await loadSalesSession(req.params.id, req.params.EnterpriseName);
-
-    if (!salesSession) {
-      return res.status(500).send('Unable to find sales session');
-    }
-
-    const shopifyDraftOrder = await updateShopifyDraftOrder(
-      client,
-      order,
-      new Date(salesSession.reservationDate),
-      req.params.EnterpriseName
-    );
-
-    const lineItemIdMappings = await persistLineIdMappings(
-      shopifyDraftOrder,
-      req.params.EnterpriseName
-    );
-    const dfcOrder = await createDfcOrderFromShopify(
-      shopifyDraftOrder,
-      lineItemIdMappings,
-      req.params.EnterpriseName
-    );
-    res.type('application/json');
-    res.send(dfcOrder);
-  } catch (error) {
-    console.error(error);
-    res.status(500).end();
+  if (!orderMetadata) {
+    return orderForbidden(req, res);
   }
+
+  const session = await getSession(
+    `${req.params.EnterpriseName}.myshopify.com`
+  );
+  const client = new shopify.api.clients.Graphql({ session });
+
+  const order = await extractOrderAndLines(req.body);
+
+  if (ids.extract(order.semanticId) !== req.params.id) {
+    return sendProblem(req, res, 400, {
+      title: 'Bad request',
+      detail: 'ID does not match payload'
+    });
+  }
+
+  const { order: shopifyOrder } = await shopifyOrders.findOrder(
+    client,
+    req.params.id,
+    {}
+  );
+
+  if (!shopifyOrder) {
+    return orderNotFound(req, res);
+  }
+
+  const salesSession = await loadSalesSession(req.params.id, req.params.EnterpriseName);
+
+  if (!salesSession) {
+    return sendProblem(req, res, 500, {
+      title: 'Internal server error',
+      detail: 'Unable to find sales session'
+    });
+  }
+
+  const shopifyDraftOrder = await updateShopifyDraftOrder(
+    client,
+    order,
+    new Date(salesSession.reservationDate),
+    req.params.EnterpriseName
+  );
+
+  const lineItemIdMappings = await persistLineIdMappings(
+    shopifyDraftOrder,
+    req.params.EnterpriseName
+  );
+  const dfcOrder = await createDfcOrderFromShopify(
+    shopifyDraftOrder,
+    lineItemIdMappings,
+    req.params.EnterpriseName
+  );
+
+  return sendOrderWrite(req, res, dfcOrder);
 };
 
 async function updateShopifyDraftOrder(client, order, reservationDate, enterprise) {
@@ -125,4 +123,4 @@ async function updateShopifyDraftOrder(client, order, reservationDate, enterpris
   return shopifyDraftOrder;
 }
 
-export default updateOrder;
+export default withLdpErrors(updateOrder);

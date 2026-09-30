@@ -27,7 +27,10 @@ export const LDP_TYPES = {
   RDF_SOURCE: `${LDP_NS}RDFSource`,
   CONTAINER: `${LDP_NS}Container`,
   BASIC_CONTAINER: `${LDP_NS}BasicContainer`,
-  CONTAINER_MEMBER: `${LDP_NS}ContainerMember`
+  // LDP 1.0 calls these membership statements; the "ContainerMember" name is
+  // not an LDP term, so don't invent one.
+  MEMBERSHIP_RESOURCE: `${LDP_NS}ContainerMembershipResource`,
+  CONTAINS: `${LDP_NS}contains`
 };
 
 export const LDP_CONTENT_TYPES = 'application/ld+json';
@@ -51,7 +54,11 @@ const EXPOSED_HEADERS = [
 
 export const host = () => config.HOST.replace(/\/+$/, '');
 
-/** Absolute URI of an LDP container, e.g. the SuppliedProducts collection. */
+/**
+ * Absolute URI of an LDP container or member, e.g. the SuppliedProducts
+ * collection. `config.HOST` is expected to end in a slash (see the gotcha in
+ * AGENTS.md); we trim it here so callers never have to care.
+ */
 export const containerUri = (...segments) =>
   [host(), ...segments.map((s) => String(s).replace(/^\/+|\/+$/g, ''))].join('/');
 
@@ -238,8 +245,7 @@ export const sendLdp = (req, res, status, body, options = {}) => {
   } else if (member) {
     linkHeaders.push(
       `<${LDP_TYPES.RESOURCE}>; rel="type"`,
-      `<${LDP_TYPES.RDF_SOURCE}>; rel="type"`,
-      `<${LDP_TYPES.CONTAINER_MEMBER}>; rel="type"`
+      `<${LDP_TYPES.RDF_SOURCE}>; rel="type"`
     );
   }
 
@@ -285,9 +291,9 @@ export const sendWriteResult = (req, res, { status = 200, body, location, ...opt
 };
 
 /**
- * Route bodies arrive as a string on the Orders/Enterprises routes
- * (`express.text({type: '*/json'})`) and as a parsed object on SuppliedProducts
- * (`express.json()`). Accept both, plus `application/ld+json`.
+ * Route bodies arrive as a string on the Orders/Enterprises routes (they use
+ * the wildcard-json `express.text` parser) and as a parsed object on
+ * SuppliedProducts (`express.json`). Accept both, plus `application/ld+json`.
  */
 export const parseLdpBody = (req) => {
   const { body } = req;
@@ -327,13 +333,13 @@ export const parseLdpBody = (req) => {
  * `Allow` / `Accept-Post` / `Accept-Patch` without a body.
  */
 export const ldpOptions = ({ container, writable }) => {
+  // Order matches DjangoLDP: read/create on a container, the write verbs then
+  // HEAD/OPTIONS on a member.
   const allow = container
     ? ['GET', 'POST', 'HEAD', 'OPTIONS']
-    : ['GET', 'HEAD', 'OPTIONS'];
-  if (writable) {
-    allow.push('PUT', 'PATCH');
-    allow.splice(allow.length - 1, 0, 'DELETE');
-  }
+    : (writable
+      ? ['GET', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+      : ['GET', 'HEAD', 'OPTIONS']);
 
   return (req, res) => {
     res.set('Allow', allow.join(', '));
@@ -349,7 +355,7 @@ export const ldpOptions = ({ container, writable }) => {
         `<${LDP_TYPES.RDF_SOURCE}>; rel="type"`,
         ...(container
           ? [`<${LDP_TYPES.CONTAINER}>; rel="type"`, `<${LDP_TYPES.BASIC_CONTAINER}>; rel="type"`]
-          : [`<${LDP_TYPES.CONTAINER_MEMBER}>; rel="type"`])
+          : [])
       ].join(', ')
     );
     res.set('Access-Control-Expose-Headers', EXPOSED_HEADERS.join(', '));

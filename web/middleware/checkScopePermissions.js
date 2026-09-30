@@ -1,7 +1,5 @@
 import { query } from '../database/connect.js';
-import { SCOPE_MAPPING, getRequiredScope } from '../fdc-modules/scopes/matrix.js';
-
-export { getRequiredScope };
+import { getRequiredScope } from '../fdc-modules/scopes/matrix.js';
 
 const checkScopePermissions = async (req, res, next) => {
   try {
@@ -25,12 +23,18 @@ const checkScopePermissions = async (req, res, next) => {
       });
     }
 
-    const requiredScope = getRequiredScope(req.route?.path || req.path, method);
+    // This middleware runs on an `app.use` mount, so express strips the mount
+    // path: `req.path` is relative ('/' for the container, '/42' for a member)
+    // and `req.route` is undefined. Rejoin baseUrl + path to get the absolute
+    // path the matrix is keyed on, and fall back to the raw path for safety.
+    const absolutePath = `${req.baseUrl || ''}${req.path || ''}`.replace(/\/+$/, '') || '/';
+    const requiredScope = getRequiredScope(absolutePath, method)
+      ?? getRequiredScope(req.route?.path || req.path, method);
 
     if (!requiredScope) {
       return res.status(404).json({
         message: 'Endpoint not found or not supported',
-        error: 'Invalid endpoint'
+        error: `No DFC scope is defined for ${method} ${absolutePath}`
       });
     }
 
@@ -52,12 +56,6 @@ const checkScopePermissions = async (req, res, next) => {
       error: error.message
     });
   }
-};
-
-const matchRoute = (pattern, path) => {
-  // Convert pattern like '/api/dfc/Enterprises/:EnterpriseName' to regex
-  const regex = pattern.replace(/:[^/]+/g, '[^/]+');
-  return new RegExp(`^${regex}$`).test(path);
 };
 
 const checkPlatformPermissions = async (platformId, shopName, requiredScope) => {

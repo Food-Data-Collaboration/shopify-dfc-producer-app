@@ -20,10 +20,16 @@ import ShopModules from './api-modules/shop/index.js';
 import checkOnlineSession from './middleware/checkOnlineSession.js';
 
 import scopes from './fdc-modules/scopes.js';
+import profile from './fdc-modules/profile.js';
 import portals from './fdc-modules/portals/index.js';
 import fdcOrderRoutes from './fdc-modules/orders/index.js';
 import fdcProductRoutes from './fdc-modules/products/index.js';
-import { getEnterprise, getEnterprises } from './fdc-modules/enterprises/controllers/index.js';
+import {
+  getEnterprise,
+  getEnterprises,
+  enterprisesAreReadOnly
+} from './fdc-modules/enterprises/controllers/index.js';
+import { ldpOptions, withLdpErrors } from './fdc-modules/ldp/index.js';
 import { checkShopOnboarding } from './middleware/checkShopOnboarding.js';
 import populateShop from './middleware/populateShopId.js';
 
@@ -71,14 +77,30 @@ app.get(
 
 app.use('/fdc', cors(), express.json(), legacyfdcRouter);
 
+// WebID self-description, unauthenticated like DjangoLDP's /profile.
+app.get('/profile', cors(), profile);
+
+// `Enterprises` is an LDP container. Read-only: an enterprise is provisioned by
+// installing the app, not by an LDP write, so the other verbs answer 405 with
+// an Allow header rather than pretending to be writable.
+app.options(
+  '/api/dfc/Enterprises',
+  cors(),
+  ldpOptions({ container: true, writable: false })
+);
 app.get(
   '/api/dfc/Enterprises',
   cors(),
   express.text({ type: '*/json' }),
   checkUserAccessPermissions,
-  getEnterprises
+  withLdpErrors(getEnterprises)
 );
 
+app.options(
+  '/api/dfc/Enterprises/:EnterpriseName',
+  cors(),
+  ldpOptions({ container: false, writable: false })
+);
 app.get(
   '/api/dfc/Enterprises/:EnterpriseName',
   cors(),
@@ -86,7 +108,15 @@ app.get(
   populateShop,
   checkUserAccessPermissions,
   checkScopePermissions,
-  getEnterprise
+  withLdpErrors(getEnterprise)
+);
+app.all(
+  '/api/dfc/Enterprises/:EnterpriseName',
+  cors(),
+  populateShop,
+  checkUserAccessPermissions,
+  checkScopePermissions,
+  enterprisesAreReadOnly
 );
 
 app.use(
@@ -100,10 +130,16 @@ app.use(
   fdcOrderRoutes
 );
 
+// SuppliedProducts is the writable LDP container: POST publishes a Shopify
+// variant, and members support GET/PUT/PATCH/DELETE. The body parser accepts
+// JSON-LD as well as plain JSON so a hub can POST `application/ld+json`.
 app.use(
   '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts',
   cors(),
-  express.json(),
+  express.json({
+    type: ['application/json', 'application/ld+json', 'text/json'],
+    limit: '5mb'
+  }),
   populateShop,
   checkUserAccessPermissions,
   checkScopePermissions,

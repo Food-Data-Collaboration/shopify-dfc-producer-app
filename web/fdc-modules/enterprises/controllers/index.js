@@ -8,6 +8,23 @@ import { getAllShopNames } from '../../../database/connect.js';
 import {
   getVariants
 } from '../../../database/variants/variants.js';
+import {
+  buildContainer,
+  containerUri,
+  graphToMembers,
+  sendGraph,
+  sendLdp,
+  sendProblem
+} from '../../ldp/index.js';
+
+/**
+ * Member URIs are absolute (`config.HOST`-rooted) so they dereference from any
+ * host the hub happens to talk to. The enterprise builders below still use the
+ * historical `/api/dfc/...` relative form for the blank-node members; the
+ * published `@id`s that hubs dereference come from `productUtils` /
+ * `dfc-order`, which are already HOST-rooted.
+ */
+const absoluteUri = (...segments) => containerUri(...segments);
 
 const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
   const session = await getSession(`${enterpriseName}.myshopify.com`);
@@ -71,34 +88,58 @@ const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
   return [enterprise, address, mainContact, ...(phoneNumber ? [phoneNumber] : []), ...suppliedProducts];
 };
 
+/**
+ * `GET /api/dfc/Enterprises/{name}` — an LDP member (`ldp:Resource` /
+ * `ldp:RDFSource`). The body is the connector graph: the Enterprise plus the
+ * blank-node-ish address / mainContact / phoneNumber / supplies members it
+ * references, which is exactly what a hub dereferences.
+ */
 export const getEnterprise = async (req, res) => {
-  try {
-    const connector = await loadConnectorWithResources();
-    const graph = await connector.export(
-      ...await buildSingleEnterprise(req.params.EnterpriseName, req.shop.storeFrontAccessToken)
-    );
-    res.type('application/json');
-    res.send(graph);
-  } catch (error) {
-    console.error(error);
-    res.status(500).end();
-  }
+  const connector = await loadConnectorWithResources();
+  const graph = await connector.export(
+    ...await buildSingleEnterprise(req.params.EnterpriseName, req.shop.storeFrontAccessToken)
+  );
+
+  return sendGraph(req, res, graph, { member: true });
 };
 
+/**
+ * `GET /api/dfc/Enterprises` — the LDP container of enterprises this hub may
+ * see. Deliberately *not* shop-scoped: the caller's `client_id` decides which
+ * shops are listed (see `getAllShopNames`), which is the pre-existing
+ * behaviour. `ldp:contains` carries one member description per enterprise; the
+ * full representation lives at the member URI.
+ */
 export const getEnterprises = async (req, res) => {
-  try {
-    const connector = await loadConnectorWithResources();
-    const shopNames = await getAllShopNames(
-      req.shop?.ordersFeatureEnabled ? null : req.tokenSet.client_id
-    );
-    const enterprises = shopNames.map((enterpriseName) =>
-      connector.createEnterprise(`/api/dfc/Enterprises/${enterpriseName}`)
-    );
-    const graph = await connector.export(...enterprises);
-    res.type('application/json');
-    res.send(graph);
-  } catch (error) {
-    console.error(error);
-    res.status(500).end();
-  }
+  const connector = await loadConnectorWithResources();
+  const shopNames = await getAllShopNames(
+    req.shop?.ordersFeatureEnabled ? null : req.tokenSet.client_id
+  );
+
+  const { members } = graphToMembers(
+    await connector.export(
+      ...shopNames.map((enterpriseName) =>
+        connector.createEnterprise(absoluteUri('api/dfc/Enterprises', enterpriseName))
+      )
+    )
+  );
+
+  return sendLdp(req, res, 200, buildContainer(containerUri('api/dfc/Enterprises'), members), {
+    container: true
+  });
+};
+
+/**
+ * Enterprises are read-only on this dataserver: an enterprise *is* a Shopify
+ * shop, so creating or deleting one is an app install/uninstall, which is not
+ * an LDP write. `Allow` states the read-only contract and the LDP protocol
+ * headers are still advertised so a client can discover why.
+ */
+export const enterprisesAreReadOnly = (req, res) => {
+  const location = containerUri('api/dfc/Enterprises', req.params.EnterpriseName);
+  return sendProblem(req, res, 405, {
+    title: 'Method not allowed',
+    detail: 'Enterprises are provisioned by installing the app on a Shopify shop, not via LDP writes. '
+      + 'Use PUT/PATCH/DELETE on the member resources (SuppliedProducts, Orders) instead.'
+  });
 };
