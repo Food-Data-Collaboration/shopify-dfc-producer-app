@@ -1,5 +1,5 @@
 import { SuppliedProduct, Offer, CatalogItem, QuantitativeValue, Price } from
-  '@fooddatacollaboration/linkml-connector';
+  '@siol-data/linkml-connector';
 import {
   createSuppliedProducts,
   createVariantSuppliedProduct,

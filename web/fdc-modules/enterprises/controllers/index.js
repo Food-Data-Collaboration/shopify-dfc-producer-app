@@ -1,4 +1,4 @@
-import { PhoneNumber } from '@fooddatacollaboration/linkml-connector';
+import { PhoneNumber } from '@siol-data/linkml-connector';
 import shopify from '../../../shopify.js';
 import getShopDetails from '../shopify/shop.js';
 import getLogo from '../shopify/storefront.js';

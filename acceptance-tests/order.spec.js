@@ -1,6 +1,6 @@
 import { Issuer } from 'openid-client'
 import loadConnectorWithResources from '../web/connector/index.js';
-import { OrderLine, Order, SaleSession, Offer, SuppliedProduct } from '@fooddatacollaboration/linkml-connector';
+import { OrderLine, Order, SaleSession, Offer, SuppliedProduct } from '@siol-data/linkml-connector';
 import axios from 'axios';
 import * as ids from '../web/fdc-modules/orders/controllers/shopify/ids.js';
 

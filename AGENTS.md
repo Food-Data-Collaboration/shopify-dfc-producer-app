@@ -35,9 +35,12 @@
 - Frontend `web/frontend/` — Vite + React + Polaris, `vite build` → `web/frontend/dist`, served by Express static. `dev_embed.js` for Shopify.
 - Docker `Dockerfile` copies only `web/`, deletes `yarn.lock` (`RUN rm yarn.lock`) then `yarn` + frontend build. CI `build-and-deploy.yml` (reusable, pushes `ghcr.io`), `deploy-staging.yml` (staging branch), `deploy-main.yml` (main). CI runs Playwright only (`frontend-test` gates Docker build); jest is not in CI.
 
-## Connector `@fooddatacollaboration/linkml-connector` (v2.0.1, `file:` dep)
+## Connector `@siol-data/linkml-connector` (v2.0.1, JSR)
 
-- Local package at `../DFC-LinkML/typescript-connector`, wired via `file:` in root + `web/package.json`. Import `@fooddatacollaboration/linkml-connector`. Needs Node ≥20 (shell may default to 18 — use nodenv 24 for `web/` installs).
+- Published on JSR as `@siol-data/linkml-connector` (source: `Food-Data-Collaboration/DFC-LinkML`, `typescript-connector/`). Import `@siol-data/linkml-connector`.
+- Installed via JSR's npm-compat mirror: `"@siol-data/linkml-connector": "npm:@jsr/siol-data__linkml-connector@2.0.1"` in root + `web/package.json`. The `@jsr` scope only exists on `https://npm.jsr.io`, so `.yarnrc` (yarn 1) and `.npmrc` (npm) both pin `@jsr:registry`. **Keep all four registry files committed** — `Dockerfile` copies only `web/`, so `web/.yarnrc` + `web/.npmrc` are what the image build reads.
+- JSR packages are ESM-only, so the package must be imported from ESM. `web/` is `"type": "module"` ✓; root is CJS and only declares the dep so `jest.config.js`'s `require.resolve` mapper works.
+- Needs Node ≥20 (shell may default to 18 — use nodenv 24 for `web/` installs). The shim exposes `src/*.js` (not `dist/`), and `require.resolve` returns that path.
 - Singleton `web/connector/index.js` is just `new Connector()` — v2.0.0 taxonomies bundle in the constructor. No thesaurus loading (deleted `web/connector/thesaurus/`, `dfcContext.js`).
 - Creation: `connector.createX(semanticId, params)` or `createX({semanticId, ...})` / `new X(semanticId, params)`. Blank-node ids by hand (`_:bN`, `_:qty_N` counters).
 - Field access, not getters: `o.semanticId`, `o.hasOrderStatus`, `o.quantity`, `line.concerns`, `offer.offers` (string ids or resolved objects — handle both).

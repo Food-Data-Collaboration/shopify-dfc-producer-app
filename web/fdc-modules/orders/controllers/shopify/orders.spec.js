@@ -1,4 +1,4 @@
-import { Offer, OrderLine, SuppliedProduct } from '@fooddatacollaboration/linkml-connector';
+import { Offer, OrderLine, SuppliedProduct } from '@siol-data/linkml-connector';
 import loadConnectorWithResources from '../../../../connector/index.js';
 import {createUpdatedShopifyLines} from './orders.js'
 

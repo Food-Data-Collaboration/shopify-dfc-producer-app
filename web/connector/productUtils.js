@@ -1,4 +1,4 @@
-import { SuppliedProduct } from '@fooddatacollaboration/linkml-connector';
+import { SuppliedProduct } from '@siol-data/linkml-connector';
 import config from '../config.js';
 import currencyMeasureFor from '../utils/currencyMeasureFor.js';
 import { throwError } from '../utils/index.js';

@@ -1,4 +1,4 @@
-import { OrderLine, Order, SaleSession } from '@fooddatacollaboration/linkml-connector';
+import { OrderLine, Order, SaleSession } from '@siol-data/linkml-connector';
 import loadConnectorWithResources from '../../../connector/index.js';
 import * as ids from '../controllers/shopify/ids.js';
 import config from '../../../config.js';

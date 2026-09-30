@@ -1,4 +1,4 @@
-import { OrderLine, Person } from '@fooddatacollaboration/linkml-connector';
+import { OrderLine, Person } from '@siol-data/linkml-connector';
 import { getTargetStringFromSemanticId, throwError } from '../utils/index.js';
 
 import loadConnectorWithResources from './index.js';

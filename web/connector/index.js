@@ -1,4 +1,4 @@
-import { Connector } from '@fooddatacollaboration/linkml-connector';
+import { Connector } from '@siol-data/linkml-connector';
 import { throwError } from '../utils/index.js';
 
 let _connector;

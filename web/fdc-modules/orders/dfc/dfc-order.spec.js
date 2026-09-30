@@ -1,4 +1,4 @@
-import { Offer, Order, OrderLine, SaleSession } from '@fooddatacollaboration/linkml-connector';
+import { Offer, Order, OrderLine, SaleSession } from '@siol-data/linkml-connector';
 import loadConnectorWithResources from '../../../connector/index.js';
 import { createDfcOrderFromShopify, createDfcOrderLineFromShopify, createDfcOrderLinesFromShopify, extractOrderAndLines, extractOrderAndLinesAndSalesSession, extractOrderLine, createBulkDfcOrderFromShopify } from './dfc-order.js';
 
