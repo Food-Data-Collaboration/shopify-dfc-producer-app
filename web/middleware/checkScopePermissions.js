@@ -1,21 +1,7 @@
 import { query } from '../database/connect.js';
+import { SCOPE_MAPPING, getRequiredScope } from '../fdc-modules/scopes/matrix.js';
 
-const SCOPE_MAPPING = {
-  GET: {
-    '/api/dfc/Enterprises/:EnterpriseName': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise',
-    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadOrders',
-    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadProducts',
-    '/api/dfc/Enterprises/:EnterpriseName/Portals': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise'
-  },
-  POST: {
-    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteOrders',
-    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteProducts',
-  },
-  PUT: {
-    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteOrders',
-    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteProducts',
-  }
-};
+export { getRequiredScope };
 
 const checkScopePermissions = async (req, res, next) => {
   try {
@@ -66,28 +52,6 @@ const checkScopePermissions = async (req, res, next) => {
       error: error.message
     });
   }
-};
-
-const getRequiredScope = (path, method) => {
-  const methodScopes = SCOPE_MAPPING[method];
-
-  if (!methodScopes) {
-    return null;
-  }
-
-  // Try exact match first
-  if (methodScopes[path]) {
-    return methodScopes[path];
-  }
-
-  // Try pattern matching for parameterized routes
-  for (const [pattern, scope] of Object.entries(methodScopes)) {
-    if (matchRoute(pattern, path)) {
-      return scope;
-    }
-  }
-
-  return null;
 };
 
 const matchRoute = (pattern, path) => {
