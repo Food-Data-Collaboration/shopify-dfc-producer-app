@@ -5,7 +5,8 @@
 - Node >=20.10.0 (`web/package.json` engines). `web/` is ESM (`"type": "module"`), root is CJS.
 - Install with `yarn` only (don't use `npm install`): `yarn install --frozen-lockfile`, then `yarn --cwd web install --frozen-lockfile`, then `yarn --cwd web/frontend install --frozen-lockfile` (same 3-step order as CI). Lockfiles are tracked — `yarn.lock` + `package-lock.json` at root and in `web/`, plus `web/frontend/yarn.lock` — don't delete any.
 - Env: `web/.env` (not root). Loaded by `web/config.js` (handles cwd `web` vs root); yup schema has no `.required()` so missing vars are `undefined`, not errors. `OIDC_TRUSTED_AUDIENCES` allowlists hub token audiences (runbook: `DEPLOYMENT_STRATEGY.md` §2). `shopify.app.*.toml` are per-developer CLI configs.
-- DB local: `local-db/docker-compose.yml` (postgres on 5435 with SSL on + pgAdmin on 5050). Connection strings in `local-db/readme.md`. Build schema: `yarn build:db` (runs `web/database/build.js` — target DB `SHOP_REGISTRY_DATABASE_NAME` must already exist; `DATABASE_HOST_URL` excludes db name).
+- DB local: `./scripts/setup-test-db.sh` from the repo root is the one-shot setup — starts postgres in Docker (`local-db/docker-compose.yml`, port 5435, SSL on, pgAdmin on 5050), creates `fdc_appuser` + the databases, applies all schemas, seeds dev portal + test users, and writes `DATABASE_HOST_URL`/`SHOP_REGISTRY_DATABASE_NAME` into `web/.env`. Idempotent; `--reset` to wipe the volume. No root/sudo needed. Details and caveats in `local-db/readme.md`.
+- `yarn build:db` (`web/database/build.js`) is narrower — registry tables only (`auto-timestamp`, `shop_registry`, `portals`, `shopify_sessions`, dev seed). The 4 DB-dependent jest suites need more than that (they hit the central pool for `line_items`/`orders`/`sales_sessions`/seeded `users`, which live in per-shop DBs in production), so use the script, not `build:db`, to make `npm test` pass. `build:db` also assumes the target DB already exists; `DATABASE_HOST_URL` excludes the db name.
 - Orders work: read `.opencode/dfc-orders.md` (route/middleware flow) and `.opencode/dfc-orders-common-patterns.md` (Shopify↔OFN parity) first.
 
 ## Commands
@@ -18,8 +19,9 @@
 | `npx jest path/to/file.spec.js` | Single test (from root) — for blank-node diffs use `Received:` from the full `npm test` run, not isolation |
 | `npm run acceptance-test` | Targets `acceptance-tests/` (singular script name) — NOT runnable as-is: `order.spec.js` ships with empty `refreshToken`/product IDs/`SHOP_NAME`, needs live server + OIDC |
 | `npm run test:e2e:build` | Builds `web/frontend` (`vite build`), starts server `MOCK_BRIDGE=1`, mock admin on 3080, runs Playwright |
-| `npm run build:db` | `node ./web/database/build.js` |
-| ESLint/Prettier | Configured in `web/.eslintrc.cjs` (airbnb base). No separate typecheck. |
+| `npm run build:db` | `node ./web/database/build.js` — registry tables only; see Setup for why the test DB needs the script instead |
+| `./scripts/setup-test-db.sh` | One-shot local test DB (Docker postgres on 5435 + all schemas + seeds + `web/.env`); `--reset` to wipe the volume |
+| ESLint/Prettier | Configured in `web/.eslintrc.cjs` (airbnb base). No separate typecheck. CI does not lint, and the eslint-import resolver cannot resolve the JSR connector alias (`import/no-unresolved` on `@siol-data/linkml-connector` is expected noise). |
 
 ## Architecture
 
@@ -90,7 +92,8 @@ federation, no proxy-import, no CSV import, no persons container.
 ## Tests
 
 - Jest `jest.config.js` (`ts-jest` + `babel-jest`, `transformIgnorePatterns:[]`, `testPathIgnorePatterns:['/node_modules/','acceptance-tests','e2e']`, `moduleNameMapper` resolves connector). `test-setup.js` closes `pool` after all.
-- Mix `.spec.js`/`.test.js`. DB-dependent tests (`web/database/*`, `lineItemMappings.spec.js`) fail without Postgres.
+- Mix `.spec.js`/`.test.js`. DB-dependent tests (`web/database/{line_items,orders,sales_sessions}`, `lineItemMappings.spec.js`) need Postgres — run `./scripts/setup-test-db.sh` first, or they fail with `getaddrinfo EAI_AGAIN` (a missing `DATABASE_HOST_URL`, not a DNS problem). Full green suite is 163 tests / 16 suites.
+- `lineItemMappings.spec.js` fixtures use a flat `lineItems: [...]` array, not `{ edges: [...] }` — the callers in `orders.js` flatten `lineItems.nodes` first.
 - LDP suites: `web/fdc-modules/{ldp,scopes,profile,products,orders}/*.spec.js` — all DB-free. `products/ldp.spec.js` mocks `shopify.js`, `getShopifySession.js` and the variants table, so it needs neither. In specs, read member URIs from `config.HOST` (`web/.env` sets it to `http://localhost:3629/`), and mock the Shopify client with a class *inside* the `jest.mock` factory since jest hoists the call.
 - E2E: Playwright `playwright.config.js` (workers 1, `baseURL http://localhost:3080`, `global-setup/teardown`, `webServer` spawns `node index.js` in `web/` with `MOCK_BRIDGE=1`, `SHOPIFY_API_KEY=test-mock-key`). Needs `yarn --cwd web/frontend build` first unless using `test:e2e:build`.
 
