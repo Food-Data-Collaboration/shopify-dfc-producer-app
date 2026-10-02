@@ -91,10 +91,10 @@ federation, no proxy-import, no CSV import, no persons container.
 - Frontend `web/frontend/` — Vite + React + Polaris, `vite build` → `web/frontend/dist`, served by Express static. `dev_embed.js` for Shopify.
 - Docker `Dockerfile` copies only `web/`, deletes `yarn.lock` (`RUN rm yarn.lock`) then `yarn` + frontend build. CI `build-and-deploy.yml` (reusable, pushes `ghcr.io`), `deploy-staging.yml` (staging branch), `deploy-main.yml` (main). CI runs Playwright only (`frontend-test` gates Docker build); jest is not in CI.
 
-## Connector `@siol-data/linkml-connector` (v2.0.1, JSR)
+## Connector `@siol-data/linkml-connector` (v2.0.5, JSR)
 
 - Published on JSR as `@siol-data/linkml-connector` (source: `Food-Data-Collaboration/DFC-LinkML`, `typescript-connector/`). Import `@siol-data/linkml-connector`.
-- Installed via JSR's npm-compat mirror: `"@siol-data/linkml-connector": "npm:@jsr/siol-data__linkml-connector@2.0.1"` in root + `web/package.json`. The `@jsr` scope only exists on `https://npm.jsr.io`, so `.yarnrc` (yarn 1) and `.npmrc` (npm) both pin `@jsr:registry`. **Keep all four registry files committed** — `Dockerfile` copies only `web/`, so `web/.yarnrc` + `web/.npmrc` are what the image build reads.
+- Installed via JSR's npm-compat mirror: `"@siol-data/linkml-connector": "npm:@jsr/siol-data__linkml-connector@2.0.5"` in root + `web/package.json`. The `@jsr` scope only exists on `https://npm.jsr.io`, so `.yarnrc` (yarn 1) and `.npmrc` (npm) both pin `@jsr:registry`. **Keep all four registry files committed** — `Dockerfile` copies only `web/`, so `web/.yarnrc` + `web/.npmrc` are what the image build reads.
 - JSR packages are ESM-only, so the package must be imported from ESM. `web/` is `"type": "module"` ✓; root is CJS and only declares the dep so `jest.config.js`'s `require.resolve` mapper works.
 - Needs Node ≥20 (shell may default to 18 — use nodenv 24 for `web/` installs). The shim exposes `src/*.js` (not `dist/`), and `require.resolve` returns that path.
 - Singleton `web/connector/index.js` is just `new Connector()` — v2.0.0 taxonomies bundle in the constructor. No thesaurus loading (deleted `web/connector/thesaurus/`, `dfcContext.js`).
@@ -103,6 +103,8 @@ federation, no proxy-import, no CSV import, no persons container.
 - Vocab as compact URIs (no `MEASURES`/`VOCABULARY`): `dfc-v:Held/Complete/Fulfilled/Unfulfilled/Combine`, `dfc-m:Kilogram/Piece/Euro/PoundSterling/USDollar` (`web/utils/currencyMeasureFor.js` maps codes).
 - `connector.export(...)` spread → JSON string (async); `connector.import(string|object)` sync → array. No context juggling — `@context` always the v2 URL string.
 - Known gaps: `SuppliedProduct` has `hasVariant` but no `isVariantOf` (registered manually via `registerSemanticProperty`); product types come from bundled v2 taxonomy (`dfc-pt:` notations) via `web/utils/productTypes.js` — v1 ids stored in DB may not resolve. (Fixed upstream: v2 `Price` now extends `QuantitativeValue`, so amount/currency flow through `value`/`hasUnit`.)
+- **Do NOT gate on `connector.validate()`** (added in 2.0.5). Its `REQUIRED_SLOTS` map demands *every* listed slot per type, not "at least one", so it flags ~10 issues on a perfectly normal graph — `Order` alone wants `belongsTo`/`orderedBy`/`selects`/`uses`, `Offer` wants `offers` *and* `offersTo`. Treat it as advisory at most; it would reject essentially everything this app emits. Verified against the real export shapes before ruling it out.
+- Version bumps so far verified wire-identical: 2.0.1 → 2.0.5 changes only JSDoc, `validate()`, and the PHP connector (the "sparse-singleton export" fix is PHP-only; `JsonLdSerializer.ts` is byte-identical and the bundled taxonomies are unchanged — still 510 ProductType concepts). Re-run that comparison before trusting a future bump; the models we use (`SuppliedProduct`, `Offer`, `Price`, `Order`, `OrderLine`, `SaleSession`, `Person`, `Enterprise`, `Address`, `PhoneNumber`, `CatalogItem`, `QuantitativeValue`) have identical property names, but a rename there would be a breaking change to the DFC graph, not just to this code.
 
 ## Tests
 

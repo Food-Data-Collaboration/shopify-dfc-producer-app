@@ -12,7 +12,7 @@
     "node": ">=20.10.0"
   },
   "dependencies": {
-    "@siol-data/linkml-connector": "npm:@jsr/siol-data__linkml-connector@2.0.1",
+    "@siol-data/linkml-connector": "npm:@jsr/siol-data__linkml-connector@2.0.5",
     "@shopify/cli": "^3.78.2",
     "@shopify/shopify-app-express": "^5.0.17",
     "@shopify/shopify-app-session-storage-postgresql": "^4.0.17",

@@ -387,10 +387,10 @@
   dependencies:
     "@shopify/graphql-client" "^1.4.2"
 
-"@siol-data/linkml-connector@npm:@jsr/siol-data__linkml-connector@2.0.1":
-  version "2.0.1"
-  resolved "https://npm.jsr.io/~/11/@jsr/siol-data__linkml-connector/2.0.1.tgz#05BA6FA9EE7598AA31C8C004E22E51D7AFB6152F"
-  integrity sha512-Ujz2FpUUUhJt54ItjgTxe/V7ox2eDvHUa3BaxxJqQbSj+6KPo0NBR2a8U5ZGKMrPGMtmkBaCH1Yv32IxsdShrw==
+"@siol-data/linkml-connector@npm:@jsr/siol-data__linkml-connector@2.0.5":
+  version "2.0.5"
+  resolved "https://npm.jsr.io/~/11/@jsr/siol-data__linkml-connector/2.0.5.tgz#1C2B80AE36E4ACA06F114B10E6CD4445948AF1C2"
+  integrity sha512-0XYV7XrfJnd+0KJxTRz4oESacRGU7P8JcJF+18upT9mwJbREJoiliWaZ/4RlO+Q8ywpteQaKNlgOtIXxY2H/FA==
   dependencies:
     "@types/jsonld" "^1.5.15"
     jsonld "^9.0.0"
