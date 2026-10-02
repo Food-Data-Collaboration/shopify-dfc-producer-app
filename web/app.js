@@ -9,6 +9,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import legacyfdcRouter from './legacy-fdc-modules/legacy-fdc-routers.js';
 import shopify from './shopify.js';
+import config from './config.js';
 import webhookHandlers from './webhooks/index.js';
 import checkUserAccessPermissions from './middleware/checkUserAccessPermissions.js';
 import checkOrdersFeature from './middleware/checkOrdersFeature.js';
@@ -32,6 +33,7 @@ import {
 import { ldpOptions, withLdpErrors } from './fdc-modules/ldp/index.js';
 import { checkShopOnboarding } from './middleware/checkShopOnboarding.js';
 import populateShop from './middleware/populateShopId.js';
+import rateLimit from './middleware/rateLimit.js';
 
 dotenv.config();
 
@@ -77,6 +79,15 @@ app.get(
 
 app.use('/fdc', cors(), express.json(), legacyfdcRouter);
 
+// Every DFC route introspects an OIDC token (a network round trip to the IdP)
+// before it authorizes anything, so the whole public surface is rate limited
+// as one budget. Cheaper to mount once than per route, and it means a single
+// caller cannot spread load across routes to dodge per-route caps.
+const dfcRateLimit = rateLimit({
+  windowMs: config.DFC_RATE_LIMIT_WINDOW_MS || 60_000,
+  max: config.DFC_RATE_LIMIT_MAX || 120
+});
+
 // WebID self-description, unauthenticated like DjangoLDP's /profile.
 app.get('/profile', cors(), profile);
 
@@ -91,6 +102,7 @@ app.options(
 app.get(
   '/api/dfc/Enterprises',
   cors(),
+  dfcRateLimit,
   express.text({ type: '*/json' }),
   checkUserAccessPermissions,
   withLdpErrors(getEnterprises)
@@ -104,6 +116,7 @@ app.options(
 app.get(
   '/api/dfc/Enterprises/:EnterpriseName',
   cors(),
+  dfcRateLimit,
   express.text({ type: '*/json' }),
   populateShop,
   checkUserAccessPermissions,
@@ -113,6 +126,7 @@ app.get(
 app.all(
   '/api/dfc/Enterprises/:EnterpriseName',
   cors(),
+  dfcRateLimit,
   populateShop,
   checkUserAccessPermissions,
   checkScopePermissions,
@@ -122,6 +136,7 @@ app.all(
 app.use(
   '/api/dfc/Enterprises/:EnterpriseName/Orders',
   cors(),
+  dfcRateLimit,
   express.text({ type: '*/json' }),
   populateShop,
   checkUserAccessPermissions,
@@ -136,6 +151,7 @@ app.use(
 app.use(
   '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts',
   cors(),
+  dfcRateLimit,
   express.json({
     type: ['application/json', 'application/ld+json', 'text/json'],
     limit: '5mb'

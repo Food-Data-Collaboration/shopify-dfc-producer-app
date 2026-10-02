@@ -52,15 +52,42 @@ const EXPOSED_HEADERS = [
   'Vary'
 ];
 
+/**
+ * Normalise one path segment: drop empty components so `a//b` becomes `a/b`
+ * and a leading/trailing slash is tolerated, and drop `.`/`..` so a hostile
+ * route param cannot walk out of the container path it was given.
+ *
+ * Written with split/filter rather than `/^\/+|\/+$/g`: that regex is not
+ * actually exponential, but it is a slash-anchored alternation run against
+ * request-derived values, which is the shape CodeQL flags as polynomial.
+ * Splitting is linear by construction.
+ *
+ * Only ever applied to *path segments*, never to `config.HOST` — collapsing
+ * `http://host` here would turn its scheme separator into `http:/host`.
+ */
+const trimSegment = (segment) =>
+  String(segment)
+    .split('/')
+    .filter((part) => part && part !== '.' && part !== '..')
+    .join('/');
+
+/**
+ * `config.HOST` without a trailing slash. `config.HOST` is expected to end in
+ * a slash (see the gotcha in AGENTS.md), and only the trailing one is
+ * stripped — the scheme's `//` has to survive.
+ */
 export const host = () => config.HOST.replace(/\/+$/, '');
 
 /**
  * Absolute URI of an LDP container or member, e.g. the SuppliedProducts
- * collection. `config.HOST` is expected to end in a slash (see the gotcha in
- * AGENTS.md); we trim it here so callers never have to care.
+ * collection.
+ *
+ * Segments come from route params, so this is the single choke point that
+ * keeps a hostile `:EnterpriseName` from smuggling an extra path or host into
+ * a URI we publish.
  */
 export const containerUri = (...segments) =>
-  [host(), ...segments.map((s) => String(s).replace(/^\/+|\/+$/g, ''))].join('/');
+  [host(), ...segments.map(trimSegment).filter(Boolean)].join('/');
 
 /**
  * Parse a connector `export()` result (a pretty-printed JSON string, or an
@@ -109,14 +136,36 @@ export const buildContainer = (id, members) => ({
 /**
  * Weak ETag over the exact bytes we are about to send, so a client replaying
  * `If-Match` always compares like with like.
+ *
+ * SHA-256 rather than SHA-1: an ETag is only a cache validator, so either is
+ * functionally fine, but SHA-1 is on every "do not use" list and CodeQL flags
+ * it. Nothing here is a security boundary — a client cannot forge one to gain
+ * access, it only controls whether its own conditional request is answered
+ * 304 — but there is no reason to ship a deprecated digest.
  */
 export const etagFor = (payload) => {
   const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
-  return `W/"${createHash('sha1').update(body).digest('base64url')}"`;
+  return `W/"${createHash('sha256').update(body).digest('base64url')}"`;
 };
 
-/** RFC 7232 weak comparison: strip W/ and the quotes, compare the values. */
-const normaliseEtag = (value) => String(value).trim().replace(/^W\//, '').replace(/^"|"$/g, '');
+/**
+ * RFC 7232 weak comparison: drop the `W/` prefix and the surrounding quotes,
+ * leaving just the value to compare. Uses `slice` rather than `/^"|"$/g` —
+ * the request-supplied string is short, but an anchored alternation on
+ * attacker-controlled input is the shape CodeQL flags as polynomial.
+ */
+const normaliseEtag = (value) => {
+  const trimmed = String(value).trim();
+
+  const unprefixed = trimmed.startsWith('W/') ? trimmed.slice(2) : trimmed;
+  const unquoted = unprefixed.length >= 2
+    && unprefixed.startsWith('"')
+    && unprefixed.endsWith('"')
+    ? unprefixed.slice(1, -1)
+    : unprefixed;
+
+  return unquoted;
+};
 
 const parseEtagList = (header) =>
   header.split(',').map((part) => normaliseEtag(part)).filter(Boolean);
@@ -196,6 +245,30 @@ export const preferReturn = (req) => {
 };
 
 /**
+ * Return `location` only if it is a same-origin absolute URI built from
+ * `config.HOST`, otherwise null (and the header is then omitted).
+ *
+ * A `Location` header on a 201 is a redirect for any client that follows it,
+ * so a caller able to influence one could otherwise bounce a hub to an
+ * attacker-controlled host. Controllers build these URIs from route params,
+ * so the guard belongs here rather than at each call site.
+ */
+const safeLocation = (location) => {
+  const value = String(location);
+
+  // A scheme-relative "//evil.example" or a backslash variant is the classic
+  // bypass, and a relative path is never what our controllers produce.
+  if (!value.startsWith(`${host()}/`)) {
+    return null;
+  }
+  if (value.includes('\\') || value.includes('\n') || value.includes('\r')) {
+    return null;
+  }
+
+  return value;
+};
+
+/**
  * Send a JSON-LD body and decorate it with the LDP protocol headers.
  *
  * @param {object} options
@@ -234,14 +307,25 @@ export const sendLdp = (req, res, status, body, options = {}) => {
   }
 
   res.status(status);
+  // `res.send(string)` falls back to text/html in Express if no type is set,
+  // which would let a problem `detail` (built from request-derived text) be
+  // rendered as HTML. Pin the type first and add nosniff so a browser cannot
+  // be talked into sniffing the body as markup.
   res.type(LDP_CONTENT_TYPES);
+  res.set('X-Content-Type-Options', 'nosniff');
   res.set('Vary', 'Accept');
   res.set('ETag', etagFor(payload));
   res.set('Link', [...linkHeaders, ...link].join(', '));
   res.set('Access-Control-Expose-Headers', EXPOSED_HEADERS.join(', '));
 
   if (location) {
-    res.set('Location', location);
+    // The Location value reaches us from controllers, which build it from
+    // route params. Only ever emit a same-origin absolute URI: an open
+    // redirect here would turn a legitimate 201 into a phishing primitive.
+    const resolved = safeLocation(location);
+    if (resolved) {
+      res.set('Location', resolved);
+    }
   }
   if (lastModified) {
     res.set('Last-Modified', new Date(lastModified).toUTCString());
@@ -384,6 +468,14 @@ export const ldpOptions = ({ container, writable }) => {
 };
 
 /**
+ * Strip control characters from a value before it goes into a log line.
+ * `req.originalUrl` is attacker-controlled and a newline in it would forge
+ * whole log entries (and can corrupt a terminal reading the logs).
+ */
+// eslint-disable-next-line no-control-regex
+const logSafe = (value) => String(value).replace(/[\u0000-\u001f\u007f]/g, '');
+
+/**
  * Wrap an express handler so anything it throws becomes a problem document
  * instead of a bare 500, and so a 404/405 raised with `res.sendProblem`-style
  * metadata keeps its status.
@@ -398,7 +490,10 @@ export const withLdpErrors = (handler) => async (req, res, next) => {
     const status = error.status || 500;
     if (status >= 500) {
       // eslint-disable-next-line no-console
-      console.error(`LDP ${req.method} ${req.originalUrl || req.url} failed`, error);
+      console.error(
+        `LDP ${logSafe(req.method)} ${logSafe(req.originalUrl || req.url)} failed`,
+        error
+      );
     }
     return sendProblem(req, res, status, {
       title: error.title || (status === 500 ? 'Internal server error' : 'Request failed'),

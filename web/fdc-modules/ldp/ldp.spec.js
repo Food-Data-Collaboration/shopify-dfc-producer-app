@@ -13,6 +13,7 @@ import {
   containerUri,
   etagFor,
   graphToMembers,
+  host,
   ldpOptions,
   parseLdpBody,
   preferReturn,
@@ -60,6 +61,27 @@ describe('containerUri', () => {
     expect(containerUri('/api/dfc/Enterprises/', '/acme/')).toMatch(
       /\/api\/dfc\/Enterprises\/acme$/
     );
+  });
+
+  it('strips traversal and empty components from a hostile segment', () => {
+    // Route params are attacker-controlled; a "../" must not be able to walk
+    // out of the container path, and a doubled separator must not smuggle in
+    // an extra path element.
+    expect(containerUri('api/dfc/Enterprises', '../../admin')).toBe(
+      `${host()}/api/dfc/Enterprises/admin`
+    );
+    expect(containerUri('api/dfc/Enterprises', '//evil.example//x')).toBe(
+      `${host()}/api/dfc/Enterprises/evil.example/x`
+    );
+    expect(containerUri('api/dfc/Enterprises', '.')).toBe(
+      `${host()}/api/dfc/Enterprises`
+    );
+  });
+
+  it('never mangles the scheme when normalising the host', () => {
+    // A regression guard: collapsing slashes across the whole URI turns
+    // `http://host` into `http:/host`, which breaks every URI we publish.
+    expect(host()).toMatch(/^https?:\/\/[^/]+$/);
   });
 });
 
@@ -251,13 +273,43 @@ describe('sendLdp', () => {
 
   it('exposes the LDP headers to browser clients', () => {
     const res = makeRes();
-    sendLdp(makeReq(), res, 200, {}, { member: true, location: 'https://host/a' });
+    sendLdp(makeReq(), res, 200, {}, { member: true, location: `${host()}/api/dfc/x` });
 
     const exposed = res.headers['Access-Control-Expose-Headers'];
     ['Link', 'ETag', 'Location', 'Accept-Post', 'Allow'].forEach((header) => {
       expect(exposed).toContain(header);
     });
-    expect(res.headers.Location).toBe('https://host/a');
+    expect(res.headers.Location).toBe(`${host()}/api/dfc/x`);
+  });
+
+  it('pins the content type and nosniff, so a problem detail cannot render as HTML', () => {
+    const res = makeRes();
+    sendLdp(makeReq(), res, 400, { detail: '<script>alert(1)</script>' });
+
+    expect(res.headers['Content-Type']).toBe('application/ld+json');
+    expect(res.headers['X-Content-Type-Options']).toBe('nosniff');
+  });
+
+  it('emits a same-origin Location and omits an off-host one', () => {
+    // A Location header on a 201 is a redirect for any client that follows
+    // it, so an attacker-influenced value must not reach it.
+    const sameOrigin = makeRes();
+    sendLdp(makeReq(), sameOrigin, 201, {}, {
+      member: true,
+      location: `${host()}/api/dfc/Enterprises/acme/SuppliedProducts/1`
+    });
+    expect(sameOrigin.headers.Location).toContain('/api/dfc/Enterprises/acme');
+
+    for (const hostile of [
+      'https://evil.example/steal',
+      '//evil.example/steal',
+      'https:\\/\\/evil.example',
+      `${host()}/x\nSet-Cookie: a=b`
+    ]) {
+      const res = makeRes();
+      sendLdp(makeReq(), res, 201, {}, { member: true, location: hostile });
+      expect(res.headers.Location).toBeUndefined();
+    }
   });
 
   it('sends a string payload verbatim, so the ETag covers the sent bytes', () => {

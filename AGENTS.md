@@ -21,6 +21,7 @@
 | `npm run test:e2e:build` | Builds `web/frontend` (`vite build`), starts server `MOCK_BRIDGE=1`, mock admin on 3080, runs Playwright |
 | `npm run build:db` | `node ./web/database/build.js` — registry tables only; see Setup for why the test DB needs the script instead |
 | `./scripts/setup-test-db.sh` | One-shot local test DB (Docker postgres on 5435 + all schemas + seeds + `web/.env`); `--reset` to wipe the volume |
+| `npx jest web/middleware/rateLimit.test.js` | Rate limiter unit tests; `limiter.reset()` clears bucket state between tests |
 | ESLint/Prettier | Configured in `web/.eslintrc.cjs` (airbnb base). No separate typecheck. CI does not lint, and the eslint-import resolver cannot resolve the JSR connector alias (`import/no-unresolved` on `@siol-data/linkml-connector` is expected noise). |
 
 ## Architecture
@@ -71,6 +72,20 @@ federation, no proxy-import, no CSV import, no persons container.
   overflow. If the surface is widened later, revisit.
 - Shopify GraphQL writes live in `web/fdc-modules/products/controllers/shopify/mutations.js`;
   `Shopify userErrors` are translated to 422, not 500.
+- **Rate limiting** (`web/middleware/rateLimit.js`, mounted in `app.js` on every
+  authorizing DFC route). Dependency-free fixed-window, in-memory, keyed by
+  OIDC `client_id` → else token `sub` (unverified; bucket key only, never
+  authorization) → else IP. Defaults 120 req / 60s, overridden by
+  `DFC_RATE_LIMIT_MAX` / `DFC_RATE_LIMIT_WINDOW_MS`. Per-process state: correct
+  for a single instance, each replica enforces its own budget when scaled —
+  swap the store for Redis if that matters. Not related to PR #94, which
+  retries *outbound* Shopify calls on rate limit.
+- **Security decisions worth knowing before editing `sendLdp`:** the ETag is
+  SHA-256 (not a security boundary, just not a deprecated digest); `Location`
+  is only emitted when it is a same-origin absolute URI, so a route param can
+  never turn a 201 into an open redirect; `X-Content-Type-Options: nosniff` is
+  set because Express defaults a string body to `text/html`; and
+  `containerUri` strips `.`/`..` from route-param segments.
 - DB multi-tenant: central `shop_registry` → per-shop pools via `web/database/connect.js:getShopDbConnection(shopId)`, SSL `rejectUnauthorized:false`. Schema per module (`web/database/{shop_registry,orders,portals,users,...}/schema.sql`); `migrations.sql` + `auto-timestamp.sql`.
 - Connector singleton `web/connector/index.js` — lazy, cached `new Connector()` (bundled v2 taxonomies, no init files).
 - Frontend `web/frontend/` — Vite + React + Polaris, `vite build` → `web/frontend/dist`, served by Express static. `dev_embed.js` for Shopify.
