@@ -16,7 +16,8 @@
 import {
   containerUri,
   sendGraph,
-  sendProblem
+  sendProblem,
+  sendWriteResult
 } from '../ldp/index.js';
 
 /** `{HOST}api/dfc/Enterprises/{shop}/Orders` */
@@ -42,13 +43,13 @@ const memberUrisIn = (graph) => {
 /**
  * `GET /Orders` — the container. The body stays the plain DFC graph; the
  * LDP-specific information is in the headers plus the `container: true` flag
- * that adds `ldp:contains`.
+ * that adds `ldp:contains`. `writable: true` because POST /Orders exists.
  */
 export const sendOrdersContainer = (req, res, graph, { pageInfo } = {}) => {
   if (pageInfo) {
     res.set('pageInfo', JSON.stringify(pageInfo));
   }
-  return sendGraph(req, res, graph, { container: true });
+  return sendGraph(req, res, graph, { container: true, writable: true });
 };
 
 /** `GET /Orders/:id` (and `GET /Orders/:id/orderLines`) — member framing. */
@@ -56,6 +57,7 @@ export const sendOrderMember = (req, res, graph) => {
   const [memberUri] = memberUrisIn(graph);
   return sendGraph(req, res, graph, {
     member: true,
+    writable: true,
     location: memberUri
   });
 };
@@ -64,10 +66,20 @@ export const sendOrderMember = (req, res, graph) => {
  * `POST /Orders`, `PUT /Orders/:id`, `POST|PUT /Orders/:id/orderLines` — a
  * successful write returns the resulting member plus a `Location` so a
  * generic LDP client knows what it just created or changed.
+ *
+ * Routes through `sendWriteResult` so every order write honours
+ * `Prefer: return=minimal` (RFC 7240). The default status stays 200, not the
+ * 201 LDP specifies, because live hubs and our acceptance test assert 200.
  */
 export const sendOrderWrite = (req, res, graph) => {
   const [memberUri] = memberUrisIn(graph);
-  return sendGraph(req, res, graph, { member: true, location: memberUri });
+  return sendWriteResult(req, res, {
+    status: 200,
+    body: graph,
+    member: true,
+    writable: true,
+    location: memberUri
+  });
 };
 
 /**

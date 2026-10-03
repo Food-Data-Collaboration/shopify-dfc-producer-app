@@ -17,22 +17,35 @@ const createQuantitativeValue = (connector, value, unit) =>
 const createPrice = (connector, value, unit, vatRate) =>
   connector.createPrice(`_:price_${++_qtyCounter}`, { value, hasUnit: unit, vatRate });
 
-const createOffer = (connector, semanticId, price) =>
+/**
+ * `dfc-b:Offer` in v2 points at a **CatalogItem**, not at the SuppliedProduct
+ * (`dfc_business_linkml_v2_0.yaml`: `offers -> CatalogItem`), and the
+ * CatalogItem's `references` is what reaches the product. Pointing `offers`
+ * straight at the product produces a graph a v2 hub cannot traverse.
+ */
+const createOffer = (connector, semanticId, catalogItem, price) =>
   connector.createOffer(`${semanticId}/Offer`, {
+    offers: catalogItem.semanticId,
     hasPrice: price.semanticId
   });
 
+/**
+ * The CatalogItem carries the commerce facts a hub needs (SKU, stock) and is
+ * the bridge from the Offer to the product.
+ */
 const createCatalogItem = (
   connector,
   semanticId,
-  offers,
+  productId,
+  price,
   sku,
   stockLimitation
 ) =>
   connector.createCatalogItem(`${semanticId}/CatalogItem`, {
     sku,
     stockLimitation,
-    offeredThrough: offers.map((o) => o.semanticId)
+    references: productId,
+    hasPrice: price.semanticId
   });
 
 async function createVariantSuppliedProduct(
@@ -59,16 +72,17 @@ async function createVariantSuppliedProduct(
       currencyMeasureFor(connector, variant.currencyCode),
       hasVat
     );
-    const offer = createOffer(connector, semanticBase, price);
     const inventoryQuantity =
       variant.inventoryPolicy === 'continue' ? -1 : variant.inventoryQuantity;
     const catalogItem = createCatalogItem(
       connector,
       semanticBase,
-      [offer],
+      semanticBase,
+      price,
       variant.sku,
       inventoryQuantity
     );
+    const offer = createOffer(connector, semanticBase, catalogItem, price);
 
     const productType = await fetchProductTypeById(
       shopDefaultProductType
@@ -255,7 +269,13 @@ async function createSuppliedProducts(productsFromShopify, enterpriseName, shopD
       }
 
       const parent = await createParent(product, enterpriseName, shopDefaultProductType);
-      parent.hasVariant = variants[0].semanticId;
+
+      // Every variant, not just the first. A retail/wholesale pair (or any
+      // product with several published variants) would otherwise export all
+      // the variant nodes but link none of them from the parent, so a hub
+      // traversing `hasVariant` would find nothing.
+      parent.hasVariant = variants.map((variant) => variant.semanticId);
+
       variants.forEach((variant) => {
         // isVariantOf is not a v2 SuppliedProduct field — register it so the
         // back-link still serializes onto the wire.
@@ -264,6 +284,12 @@ async function createSuppliedProducts(productsFromShopify, enterpriseName, shopD
           () => parent.semanticId
         );
       });
+
+      // v2 has no `referencedBy` on SuppliedProduct (that slot only exists on
+      // DFC_DitributedRepresentation), so the product cannot point back at its
+      // CatalogItem. A hub reaches it the other way round: the Offer's `offers`
+      // names the CatalogItem, which carries sku/stockLimitation and
+      // references this product.
       return [parent, ...variantsGraph];
     });
     return (await Promise.all(productsPromises)).flat(2);

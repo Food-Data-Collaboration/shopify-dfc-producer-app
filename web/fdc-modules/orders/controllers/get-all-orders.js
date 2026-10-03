@@ -47,10 +47,10 @@ const getAllOrders = async (req, res) => {
 
     return sendOrdersContainer(req, res, allDfcOrders, { pageInfo });
   } catch (error) {
-    return withLdpErrors(getAllOrders)(req, res, () => {
-      console.error(error);
-      res.status(500).end();
-    });
+    // Rethrow so the withLdpErrors wrapper below renders the problem
+    // document. Recursing into the handler here would retry the same failing
+    // Shopify/DB call indefinitely while the request stayed open.
+    throw error;
   }
 };
 

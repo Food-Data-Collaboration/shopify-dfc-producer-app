@@ -85,7 +85,13 @@ const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
 
   enterprise.supplies = suppliedProducts.map((p) => p.semanticId);
 
-  return [enterprise, address, mainContact, ...(phoneNumber ? [phoneNumber] : []), ...suppliedProducts];
+  return [
+    enterprise,
+    address,
+    mainContact,
+    ...(phoneNumber ? [phoneNumber] : []),
+    ...suppliedProducts
+  ];
 };
 
 /**
@@ -118,8 +124,10 @@ export const getEnterprises = async (req, res) => {
 
   const { members } = graphToMembers(
     await connector.export(
-      ...shopNames.map((enterpriseName) =>
-        connector.createEnterprise(absoluteUri('api/dfc/Enterprises', enterpriseName))
+      ...shopNames.map(
+        (enterpriseName) => connector.createEnterprise(
+          absoluteUri('api/dfc/Enterprises', enterpriseName)
+        )
       )
     )
   );
@@ -132,11 +140,16 @@ export const getEnterprises = async (req, res) => {
 /**
  * Enterprises are read-only on this dataserver: an enterprise *is* a Shopify
  * shop, so creating or deleting one is an app install/uninstall, which is not
- * an LDP write. `Allow` states the read-only contract and the LDP protocol
- * headers are still advertised so a client can discover why.
+ * an LDP write. `Allow` states the read-only contract so a client can discover
+ * why without guessing.
+ *
+ * Reached without `checkScopePermissions` on purpose — see app.js. With scope
+ * enforcement active the matrix has no write row for this path, so the scope
+ * check answers 404 and this handler never runs, which would make the promised
+ * 405 hold only for the orders-feature shortcut.
  */
 export const enterprisesAreReadOnly = (req, res) => {
-  const location = containerUri('api/dfc/Enterprises', req.params.EnterpriseName);
+  res.set('Allow', 'GET, HEAD, OPTIONS');
   return sendProblem(req, res, 405, {
     title: 'Method not allowed',
     detail: 'Enterprises are provisioned by installing the app on a Shopify shop, not via LDP writes. '

@@ -4,6 +4,7 @@ import { extractOrderLine, createDfcOrderLineFromShopify } from '../dfc/dfc-orde
 import { persistLineIdMappings } from './lineItemMappings.js';
 import * as orders from './shopify/orders.js';
 import * as ids from './shopify/ids.js';
+import { suppliedProductIdFor } from './shopify/orders.js';
 import { getOrder } from '../../../database/orders/orders.js';
 import { orderForbidden, orderNotFound, sendOrderWrite } from '../ldp.js';
 import { withLdpErrors } from '../../ldp/index.js';
@@ -38,14 +39,9 @@ const createOrUpdateOrderLine = async (req, res) => {
 };
 
 async function getProductId(dfcLine) {
-  const concerns = Array.isArray(dfcLine.concerns) ? dfcLine.concerns : [dfcLine.concerns].filter(Boolean);
-  const offer = concerns[0];
-  const resolvedOffer = typeof offer === 'string' ? null : offer;
-  const offers = resolvedOffer && Array.isArray(resolvedOffer.offers)
-    ? resolvedOffer.offers
-    : [resolvedOffer?.offers].filter(Boolean);
-  const product = offers[0];
-  const semanticId = typeof product === 'string' ? product : product?.semanticId;
+  // Offer -> CatalogItem -> SuppliedProduct in v2; see
+  // `suppliedProductIdFor` in shopify/orders.js for why the chain matters.
+  const semanticId = suppliedProductIdFor(dfcLine);
   return ids.extract(semanticId || dfcLine.semanticId);
 }
 

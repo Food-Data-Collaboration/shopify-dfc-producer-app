@@ -4,8 +4,16 @@ import * as ids from '../controllers/shopify/ids.js';
 import config from '../../../config.js';
 import currencyMeasureFor from '../../../utils/currencyMeasureFor.js';
 
-let _idCounter = 0;
-const nextBlankId = () => `_:b${++_idCounter}`;
+/**
+ * Deterministic blank-node id for an order line's Price.
+ *
+ * The module-wide counter this replaced advanced on *every* serialisation, so
+ * two GETs of an unchanged order produced different bytes and therefore
+ * different ETags — a conditional GET could never return 304. Deriving the id
+ * from the order and line it belongs to makes the graph byte-identical for
+ * identical data, which is what makes `If-None-Match` and `If-Match` work.
+ */
+const priceIdFor = (orderId, externalLineId) => `_:price_${orderId}_${externalLineId}`;
 
 function asArray(value) {
   return Array.isArray(value) ? value : [value];
@@ -99,19 +107,32 @@ function createOrderLine(
   const { amount, currencyCode } = line.originalUnitPriceSet.shopMoney;
 
   // Price extends QuantitativeValue in v2 (value + currency unit + vatRate).
-  const price = connector.createPrice(nextBlankId(), {
+  const price = connector.createPrice(priceIdFor(orderId, mapping.externalId), {
     value: amount,
     hasUnit: currencyMeasureFor(connector, currencyCode),
     vatRate: 0
   });
 
+  // In v2 `dfc-b:Offer.offers` points at a CatalogItem, and the CatalogItem's
+  // `references` reaches the SuppliedProduct. Pointing `offers` straight at
+  // the product produces a graph a v2 hub cannot traverse, and makes a
+  // consumer treat the last URI segment as a product id.
+  const catalogItem = connector.createCatalogItem(
+    `${suppliedProduct.semanticId}/CatalogItem`,
+    {
+      references: suppliedProduct.semanticId,
+      hasPrice: price.semanticId
+    }
+  );
+
   const offer = connector.createOffer(madeUpIdForTheOfferSoTheConnectorWorks, {
-    offers: suppliedProduct.semanticId,
+    offers: catalogItem.semanticId,
     hasPrice: price.semanticId
   });
 
   return [
     suppliedProduct,
+    catalogItem,
     offer,
     connector.createOrderLine(
       `${config.HOST}api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}/orderLines/${mapping.externalId.toString()}`,

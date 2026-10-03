@@ -94,55 +94,122 @@ app.get('/profile', cors(), profile);
 // `Enterprises` is an LDP container. Read-only: an enterprise is provisioned by
 // installing the app, not by an LDP write, so the other verbs answer 405 with
 // an Allow header rather than pretending to be writable.
+// `cors()` answers OPTIONS itself and, with the default
+// `preflightContinue: false`, never calls next() — so an `ldpOptions` handler
+// behind a bare `cors()` is dead code and the client never receives Allow,
+// Link or Accept-Post. `preflightContinue: true` lets cors() set the CORS
+// headers and hand off to the LDP handler, which adds the protocol ones.
+const corsPreflight = () => cors({ preflightContinue: true });
+
+// The wildcard `*/json` type does NOT match `application/ld+json` (that is
+// `ld+json`, not `json`), so a hub following our own `Accept-Post` header
+// would have its body silently left unparsed and order extraction would fail.
+// Declared before the routes that use it.
+const DFC_TEXT_TYPES = [
+  'application/json',
+  'application/ld+json',
+  'text/json',
+  'application/*+json'
+];
+
 app.options(
   '/api/dfc/Enterprises',
-  cors(),
+  corsPreflight(),
   ldpOptions({ container: true, writable: false })
 );
 app.get(
   '/api/dfc/Enterprises',
   cors(),
   dfcRateLimit,
-  express.text({ type: '*/json' }),
+  express.text({ type: DFC_TEXT_TYPES }),
   checkUserAccessPermissions,
   withLdpErrors(getEnterprises)
 );
 
 app.options(
   '/api/dfc/Enterprises/:EnterpriseName',
-  cors(),
+  corsPreflight(),
   ldpOptions({ container: false, writable: false })
 );
 app.get(
   '/api/dfc/Enterprises/:EnterpriseName',
   cors(),
   dfcRateLimit,
-  express.text({ type: '*/json' }),
+  express.text({ type: DFC_TEXT_TYPES }),
   populateShop,
   checkUserAccessPermissions,
   checkScopePermissions,
   withLdpErrors(getEnterprise)
 );
+// No checkScopePermissions here: the matrix has no enterprise *write* row, so
+// with scope enforcement active it would answer 404 and the read-only 405
+// contract would never be reached. Authentication still applies.
 app.all(
   '/api/dfc/Enterprises/:EnterpriseName',
   cors(),
   dfcRateLimit,
   populateShop,
   checkUserAccessPermissions,
-  checkScopePermissions,
   enterprisesAreReadOnly
 );
 
+// LDP discovery for the DFC containers.
+//
+// Registered ahead of every `app.use` mount below, because an OPTIONS request
+// must not need a database round trip: `populateShop` answers 404 for an
+// unknown shop, and a hub asking "what can I do here?" has no way to supply a
+// valid one. Inside the router the OPTIONS handler was unreachable for exactly
+// that reason.
+//
+// `corsPreflight` matters too: with the default `preflightContinue: false`
+// cors() answers OPTIONS itself and never calls next(), so an ldpOptions handler
+// behind a bare cors() is dead code.
+
+app.options(
+  '/api/dfc/Enterprises/:EnterpriseName/Orders',
+  corsPreflight(),
+  ldpOptions({ container: true, writable: true })
+);
+app.options(
+  '/api/dfc/Enterprises/:EnterpriseName/Orders/:id',
+  corsPreflight(),
+  ldpOptions({ container: false, writable: true })
+);
+app.options(
+  '/api/dfc/Enterprises/:EnterpriseName/Orders/:id/orderLines',
+  corsPreflight(),
+  ldpOptions({ container: true, writable: true })
+);
+app.options(
+  '/api/dfc/Enterprises/:EnterpriseName/Orders/:id/orderLines/:lineId',
+  corsPreflight(),
+  ldpOptions({ container: false, writable: true })
+);
+
+// The wildcard `*/json` type does NOT match `application/ld+json`, so the
+// Orders mount uses DFC_TEXT_TYPES for the same reason as the enterprise
+// routes: a hub posting JSON-LD must actually get its body parsed.
 app.use(
   '/api/dfc/Enterprises/:EnterpriseName/Orders',
   cors(),
   dfcRateLimit,
-  express.text({ type: '*/json' }),
+  express.text({ type: DFC_TEXT_TYPES }),
   populateShop,
   checkUserAccessPermissions,
   checkOrdersFeature,
   checkScopePermissions,
   fdcOrderRoutes
+);
+
+app.options(
+  '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts',
+  corsPreflight(),
+  ldpOptions({ container: true, writable: true })
+);
+app.options(
+  '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts/:ProductId',
+  corsPreflight(),
+  ldpOptions({ container: false, writable: true })
 );
 
 // SuppliedProducts is the writable LDP container: POST publishes a Shopify

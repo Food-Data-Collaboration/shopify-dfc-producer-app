@@ -19,7 +19,10 @@ import {
  */
 const fdcProductRoutes = Router({ mergeParams: true });
 
-fdcProductRoutes.options('/', ldpOptions({ container: true, writable: false }));
+// `cors()` on the mount answers OPTIONS itself and does not call next() unless
+// `preflightContinue` is set (app.js does that), so ldpOptions still runs and
+// the client gets Allow/Link/Accept-Post alongside the CORS headers.
+fdcProductRoutes.options('/', ldpOptions({ container: true, writable: true }));
 fdcProductRoutes.get('/', withLdpErrors(getProducts));
 fdcProductRoutes.post('/', withLdpErrors(publishSuppliedProduct));
 

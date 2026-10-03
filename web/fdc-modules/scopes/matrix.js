@@ -104,9 +104,19 @@ export const ADVERTISED_SCOPES = [
  *      `checkScopePermissions` sits on the container mount.
  */
 export const getRequiredScope = (path, method) => {
-  const methodScopes = SCOPE_MAPPING[method];
+  if (!path) {
+    return null;
+  }
 
-  if (!methodScopes || !path) {
+  // Express serves HEAD through the GET handlers, and the LDP Allow headers
+  // advertise it, so HEAD must resolve with the same scope as GET — otherwise
+  // an otherwise-authorised HEAD 404s on shops using portal-scope
+  // authorization.
+  const methodScopes = method === 'HEAD'
+    ? SCOPE_MAPPING.GET
+    : SCOPE_MAPPING[method];
+
+  if (!methodScopes) {
     return null;
   }
 

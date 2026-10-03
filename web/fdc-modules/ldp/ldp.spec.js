@@ -154,12 +154,17 @@ describe('etagFor', () => {
 describe('checkPreconditions', () => {
   const etag = etagFor({ a: 1 });
 
-  it('passes when If-Match matches (weak comparison)', () => {
+  it('passes when If-Match matches exactly (strong comparison)', () => {
     expect(checkPreconditions(makeReq({ headers: { 'If-Match': etag } }), etag)).toBeNull();
-    // Weak comparison ignores the W/ prefix on the client side.
+  });
+
+  it('rejects a weak If-Match against a strong validator', () => {
+    // RFC 7232 3.1 requires strong comparison for If-Match. Our validators
+    // are weak, so a client sending the bare value must be told no rather
+    // than being allowed to believe it matches.
     expect(
       checkPreconditions(makeReq({ headers: { 'If-Match': etag.replace('W/', '') } }), etag)
-    ).toBeNull();
+    ).toMatchObject({ status: 412 });
   });
 
   it('passes If-Match: * when the resource exists', () => {
@@ -248,19 +253,28 @@ describe('sendLdp', () => {
     expect(res.headers.Vary).toBe('Accept');
   });
 
-  it('advertises Container types on a container response', () => {
+  it('advertises Container types and Accept-Post on a writable container', () => {
+    const res = makeRes();
+    sendLdp(makeReq(), res, 200, { a: 1 }, { container: true, writable: true });
+
+    expect(res.headers.Link).toContain(LDP_TYPES.CONTAINER);
+    expect(res.headers.Link).toContain(LDP_TYPES.BASIC_CONTAINER);
+    expect(res.headers['Accept-Post']).toBe('application/ld+json');
+  });
+
+  it('does not advertise Accept-Post on a read-only container', () => {
+    // The Enterprises container takes no POST; saying otherwise invites a hub
+    // to publish there and collect a 405 it could not have anticipated.
     const res = makeRes();
     sendLdp(makeReq(), res, 200, { a: 1 }, { container: true });
 
     expect(res.headers.Link).toContain(LDP_TYPES.CONTAINER);
-    expect(res.headers.Link).toContain(LDP_TYPES.BASIC_CONTAINER);
-    // Containers are POST targets, so Accept-Post is advertised.
-    expect(res.headers['Accept-Post']).toBe('application/ld+json');
+    expect(res.headers['Accept-Post']).toBeUndefined();
   });
 
-  it('advertises Resource/RDFSource on a member response', () => {
+  it('advertises Resource/RDFSource on a writable member', () => {
     const res = makeRes();
-    sendLdp(makeReq(), res, 200, { a: 1 }, { member: true });
+    sendLdp(makeReq(), res, 200, { a: 1 }, { member: true, writable: true });
 
     expect(res.headers.Link).toContain(LDP_TYPES.RESOURCE);
     expect(res.headers.Link).toContain(LDP_TYPES.RDF_SOURCE);
@@ -269,6 +283,13 @@ describe('sendLdp', () => {
     expect(res.headers.Link).not.toContain(LDP_TYPES.BASIC_CONTAINER);
     expect(res.headers['Accept-Post']).toBeUndefined();
     expect(res.headers['Accept-Patch']).toBe('application/ld+json');
+  });
+
+  it('does not advertise Accept-Patch on a read-only member', () => {
+    const res = makeRes();
+    sendLdp(makeReq(), res, 200, { a: 1 }, { member: true });
+
+    expect(res.headers['Accept-Patch']).toBeUndefined();
   });
 
   it('exposes the LDP headers to browser clients', () => {
@@ -346,9 +367,9 @@ describe('sendProblem', () => {
 });
 
 describe('ldpOptions', () => {
-  it('advertises POST on a container and the write verbs on a writable member', () => {
+  it('advertises POST on a writable container and the write verbs on a writable member', () => {
     const container = makeRes();
-    ldpOptions({ container: true, writable: false })(makeReq({ method: 'OPTIONS' }), container);
+    ldpOptions({ container: true, writable: true })(makeReq({ method: 'OPTIONS' }), container);
     expect(container.headers.Allow).toBe('GET, POST, HEAD, OPTIONS');
     expect(container.headers['Accept-Post']).toBe('application/ld+json');
 
@@ -358,9 +379,14 @@ describe('ldpOptions', () => {
     expect(member.headers['Accept-Patch']).toBe('application/ld+json');
   });
 
-  it('does not advertise write verbs on a read-only member', () => {
+  it('does not advertise write verbs on a read-only member or container', () => {
     const res = makeRes();
     ldpOptions({ container: false, writable: false })(makeReq({ method: 'OPTIONS' }), res);
     expect(res.headers.Allow).toBe('GET, HEAD, OPTIONS');
+
+    const container = makeRes();
+    ldpOptions({ container: true, writable: false })(makeReq({ method: 'OPTIONS' }), container);
+    expect(container.headers.Allow).toBe('GET, HEAD, OPTIONS');
+    expect(container.headers['Accept-Post']).toBeUndefined();
   });
 });

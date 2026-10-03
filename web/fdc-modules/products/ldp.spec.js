@@ -65,8 +65,9 @@ jest.mock('../../database/variants/variants.js', () => ({
 
 jest.mock('./controllers/shopify/mutations.js', () => ({
   findProductVariants: jest.fn(),
+  findShopCurrency: jest.fn(async () => 'GBP'),
   findVariant: jest.fn(),
-  updateProductDescription: jest.fn(),
+  updateProductDetails: jest.fn(),
   updateVariantInShopify: jest.fn()
 }));
 
@@ -76,11 +77,41 @@ jest.mock('./controllers/shopify/products.js', () => ({
   getFdcVariantsByProductIdFromDB: jest.fn(async () => ({}))
 }));
 
+/**
+ * Stub of the real product graph: a published SuppliedProduct plus the
+ * supporting nodes (price, quantity, offer, catalog item) that the real
+ * connector emits. `ldp:contains` must list only the product.
+ */
+const stubProductGraph = (variantId, productId) => JSON.stringify({
+  '@context': 'https://w3id.org/dfc/ontology/v2.0.0/context/context_2.0.0.json',
+  '@graph': [
+    {
+      '@id': `https://dataserver.test/api/dfc/Enterprises/acme/SuppliedProducts/${variantId}`,
+      '@type': 'dfc-b:SuppliedProduct',
+      'dfc-b:name': 'Apples'
+    },
+    {
+      '@id': '_:p1',
+      '@type': 'dfc-b:Price',
+      'dfc-b:value': '2.49',
+      'dfc-b:hasUnit': 'dfc-m:PoundSterling'
+    },
+    {
+      '@id': `https://dataserver.test/api/dfc/Enterprises/acme/SuppliedProducts/${variantId}/Offer`,
+      '@type': 'dfc-b:Offer',
+      'dfc-b:hasPrice': '_:p1'
+    }
+  ]
+});
+
 jest.mock('./dfc/dfc-products.js', () => ({
   __esModule: true,
   default: jest.fn(async () => JSON.stringify({
     '@context': 'https://w3id.org/dfc/ontology/v2.0.0/context/context_2.0.0.json',
-    '@graph': [{ '@id': 'stub-member' }]
+    '@graph': [
+      { '@id': 'https://dataserver.test/api/dfc/Enterprises/acme/SuppliedProducts/1', '@type': 'dfc-b:SuppliedProduct' },
+      { '@id': '_:p1', '@type': 'dfc-b:Price', 'dfc-b:value': '2.49' }
+    ]
   }))
 }));
 
@@ -177,9 +208,15 @@ beforeEach(() => {
   variants.getVariants.mockResolvedValue([]);
   productsFromShopify.getFdcVariantsFromDB.mockResolvedValue({});
   productsFromShopify.getFdcVariantsByProductIdFromDB.mockResolvedValue({});
-  mutations.findVariant.mockResolvedValue({ id: VARIANT_ID, title: 'Default' });
+  mutations.findVariant.mockResolvedValue({
+    id: VARIANT_ID,
+    title: 'Default',
+    productId: PRODUCT_ID
+  });
   mutations.findProductVariants.mockResolvedValue({ id: PRODUCT_ID, variants: [] });
+  mutations.findShopCurrency.mockResolvedValue('GBP');
   mutations.updateVariantInShopify.mockResolvedValue({ id: VARIANT_ID });
+  mutations.updateProductDetails.mockResolvedValue({ id: PRODUCT_ID });
   variants.addVariant.mockImplementation(async (args) => ({ id: 8, ...args }));
   variants.deleteVariant.mockResolvedValue({ id: 7 });
 });
@@ -226,9 +263,28 @@ describe('GET SuppliedProducts (container)', () => {
     expect(body['@type']).toBe('ldp:Container');
     expect(body['@id']).toBe(suppliedProductsContainerUri('acme'));
     expect(body['ldp:contains']).toHaveLength(1);
-    // Backwards compatibility: hubs walking @graph still find the members.
-    expect(body['@graph']).toEqual(body['ldp:contains']);
+    // @graph keeps the full supporting graph so references stay resolvable.
+    expect(body['@graph'].length).toBeGreaterThan(body['ldp:contains'].length);
     expect(res.headers['Accept-Post']).toBe('application/ld+json');
+  });
+
+  it('lists only dereferenceable products in ldp:contains', async () => {
+    // Blank nodes and /Offer-style URIs have no GET route, so advertising them
+    // as members would send a hub chasing 404s.
+    productsFromShopify.getFdcVariantsFromDB.mockResolvedValue({
+      [PRODUCT_ID]: [{ retailVariantId: VARIANT_ID, enabled: true }]
+    });
+
+    const res = makeRes();
+    await getProducts(makeReq(), res);
+
+    const { 'ldp:contains': contains, '@graph': graph } = bodyOf(res);
+
+    expect(contains).toHaveLength(1);
+    expect(contains.every((m) => m['@type'] === 'dfc-b:SuppliedProduct')).toBe(true);
+    expect(contains.every((m) => !String(m['@id']).startsWith('_:'))).toBe(true);
+    // The supporting nodes are still present in the graph itself.
+    expect(graph.some((m) => m['@type'] === 'dfc-b:Price')).toBe(true);
   });
 
   it('returns an empty container when nothing is published', async () => {
@@ -256,7 +312,10 @@ describe('GET SuppliedProducts/{id} (member)', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers.ETag).toMatch(/^W\/"/);
-    expect(bodyOf(res)['@graph']).toHaveLength(1);
+    // The member GET returns the whole supporting graph, so the referenced
+    // Quantity/Price/Offer definitions stay resolvable and the ETag matches
+    // what a subsequent If-Match compares against.
+    expect(bodyOf(res)['@graph'].length).toBeGreaterThan(1);
   });
 
   it('returns the whole product group, since the DFC member @id is a variant', async () => {
@@ -399,23 +458,9 @@ describe('PUT / PATCH SuppliedProducts/{id}', () => {
     }
   ]);
 
-  it('PUT replaces writable fields, clearing the ones the payload omits', async () => {
-    withMapping();
-    const res = makeRes();
-
-    await replaceSuppliedProduct(
-      makeReq({ method: 'PUT', body: dfcDocument(memberGraph()) }),
-      res
-    );
-
-    // updateVariantInShopify(client, mapping, update) — the update is arg 3.
-    const update = mutations.updateVariantInShopify.mock.calls[0][2];
-    expect(update.title).toBe('Apples');
-    // No image in the payload, so PUT clears it.
-    expect(update.imageSrc).toBeNull();
-  });
-
-  it('PATCH only touches the fields present in the payload', async () => {
+  it('writes dfc-b:name to the parent product title, not the variant', async () => {
+    // A Shopify variant's title is derived from its option values and is not
+    // writable through ProductVariantsBulkInput, so name lands on the product.
     withMapping();
     const res = makeRes();
 
@@ -424,13 +469,12 @@ describe('PUT / PATCH SuppliedProducts/{id}', () => {
       res
     );
 
-    const update = mutations.updateVariantInShopify.mock.calls[0][2];
-    expect(update.title).toBe('Apples');
-    // PATCH must not invent a clear for a field the hub never mentioned.
-    expect(update.imageSrc).toBeUndefined();
+    expect(mutations.updateProductDetails)
+      .toHaveBeenCalledWith(expect.anything(), PRODUCT_ID, { title: 'Apples' });
+    expect(mutations.updateVariantInShopify).not.toHaveBeenCalled();
   });
 
-  it('maps an inline DFC Price onto the Shopify variant price and currency', async () => {
+  it('maps an inline DFC Price onto the Shopify variant price', async () => {
     withMapping();
     const res = makeRes();
 
@@ -438,31 +482,114 @@ describe('PUT / PATCH SuppliedProducts/{id}', () => {
 
     const update = mutations.updateVariantInShopify.mock.calls[0][2];
     expect(update.price).toBe('2.49');
-    expect(update.currencyCode).toBe('GBP');
   });
 
-  it.each([
-    ['dfc-m:Euro', 'EUR'],
-    ['dfc-m:PoundSterling', 'GBP'],
-    ['dfc-m:USDollar', 'USD']
-  ])('maps the currency unit %s to %s', async (unit, code) => {
+  it('writes a CatalogItem dfc-b:sku to the variant SKU', async () => {
     withMapping();
     const res = makeRes();
-
-    await patchSuppliedProduct(makeReq({ method: 'PATCH', body: withPrice('1.00', unit) }), res);
-
-    expect(mutations.updateVariantInShopify.mock.calls[0][2].currencyCode).toBe(code);
-  });
-
-  it('writes dfc-b:description to the parent product, not the variant', async () => {
-    withMapping();
-    const res = makeRes();
-    const body = dfcDocument(memberGraph({ 'dfc-b:description': 'Tasty' }));
+    const body = dfcDocument([
+      memberGraph()[0],
+      {
+        '@id': `${memberUri(VARIANT_ID)}/CatalogItem`,
+        '@type': 'dfc-b:CatalogItem',
+        'dfc-b:sku': 'ABC-1'
+      }
+    ]);
 
     await patchSuppliedProduct(makeReq({ method: 'PATCH', body }), res);
 
-    expect(mutations.updateProductDescription)
-      .toHaveBeenCalledWith(expect.anything(), PRODUCT_ID, 'Tasty');
+    expect(mutations.updateVariantInShopify.mock.calls[0][2].sku).toBe('ABC-1');
+  });
+
+  it('rejects a price whose currency is not the shop currency', async () => {
+    // Writing "10 EUR" as 10 GBP and reporting success is worse than an error.
+    withMapping();
+    mutations.findShopCurrency.mockResolvedValue('GBP');
+    const res = makeRes();
+
+    await expect(
+      patchSuppliedProduct(makeReq({ method: 'PATCH', body: withPrice('10.00', 'dfc-m:Euro') }), res)
+    ).rejects.toMatchObject({ status: 422 });
+    expect(mutations.updateVariantInShopify).not.toHaveBeenCalled();
+  });
+
+  it.each(['dfc-m:PoundSterling', 'dfc-m:Euro', 'dfc-m:USDollar'])(
+    'accepts the price currency %s when it matches the shop currency',
+    async (unit) => {
+      withMapping();
+      const code = { 'dfc-m:PoundSterling': 'GBP', 'dfc-m:Euro': 'EUR', 'dfc-m:USDollar': 'USD' }[unit];
+      mutations.findShopCurrency.mockResolvedValue(code);
+      const res = makeRes();
+
+      await patchSuppliedProduct(makeReq({ method: 'PATCH', body: withPrice('1.00', unit) }), res);
+
+      expect(res.statusCode).toBe(200);
+    }
+  );
+
+  it('rejects dfc-b:Image, which Shopify cannot write through this API', async () => {
+    withMapping();
+    const res = makeRes();
+    const body = dfcDocument(memberGraph({ 'dfc-b:Image': 'https://img/x.jpg' }));
+
+    await expect(
+      patchSuppliedProduct(makeReq({ method: 'PATCH', body }), res)
+    ).rejects.toMatchObject({ status: 422 });
+    expect(mutations.updateVariantInShopify).not.toHaveBeenCalled();
+    expect(mutations.updateProductDetails).not.toHaveBeenCalled();
+  });
+
+  it('clears the description on PUT when the payload omits it', async () => {
+    withMapping();
+    const res = makeRes();
+
+    await replaceSuppliedProduct(
+      makeReq({ method: 'PUT', body: dfcDocument(memberGraph()) }),
+      res
+    );
+
+    expect(mutations.updateProductDetails)
+      .toHaveBeenCalledWith(expect.anything(), PRODUCT_ID, expect.objectContaining({
+        descriptionHtml: null
+      }));
+  });
+
+  it('leaves the description alone on PATCH when the payload omits it', async () => {
+    withMapping();
+    const res = makeRes();
+
+    await patchSuppliedProduct(
+      makeReq({ method: 'PATCH', body: dfcDocument(memberGraph()) }),
+      res
+    );
+
+    const [, , update] = mutations.updateProductDetails.mock.calls[0];
+    expect(update.descriptionHtml).toBeUndefined();
+  });
+
+  it('reaches the product mutation for a description-only PATCH', async () => {
+    // Regression: the "no writable fields" 400 used to fire before the
+    // description was considered, so a description-only patch always failed.
+    withMapping();
+    const res = makeRes();
+    const [{ 'dfc-b:name': ignored, ...withoutName }] = memberGraph();
+    const body = dfcDocument([{ ...withoutName, 'dfc-b:description': 'Tasty' }]);
+
+    await patchSuppliedProduct(makeReq({ method: 'PATCH', body }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mutations.updateProductDetails)
+      .toHaveBeenCalledWith(expect.anything(), PRODUCT_ID, { descriptionHtml: 'Tasty' });
+  });
+
+  it('404s a variant whose mapping the merchant has disabled', async () => {
+    withMapping({ enabled: false });
+    const res = makeRes();
+
+    await expect(
+      patchSuppliedProduct(makeReq({ method: 'PATCH', body: withPrice() }), res)
+    ).rejects.toMatchObject({ status: 404 });
+    expect(mutations.updateVariantInShopify).not.toHaveBeenCalled();
   });
 
   it('404s a member that is not published, without touching Shopify', async () => {

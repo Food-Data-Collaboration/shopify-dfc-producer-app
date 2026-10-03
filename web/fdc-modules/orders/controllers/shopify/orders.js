@@ -325,15 +325,51 @@ export async function completeDraftOrder(client, orderId) {
   return { ...response.data.draftOrderComplete.draftOrder, lineItems: response.data.draftOrderComplete.draftOrder.lineItems.nodes };
 }
 
+/**
+ * Resolve the SuppliedProduct behind an OrderLine.
+ *
+ * A v2 OrderLine points at an `Offer`, whose `offers` is a **CatalogItem**,
+ * whose `references` is the SuppliedProduct. Walking that chain matters: taking
+ * `offers[0]` as the product would send the CatalogItem's last URI segment
+ * (usually the literal "CatalogItem") as a Shopify variant id, so the lookup
+ * misses and the line is dropped or mispriced.
+ *
+ * Handles both shapes the connector can hand us: references already resolved
+ * to objects, and plain id strings. Returns null when the chain does not
+ * resolve — better than falling back to the order line's own id, which would
+ * be wrong in the same way.
+ */
+function suppliedProductIdFor(dfcLine) {
+  const asArray = (value) => (Array.isArray(value) ? value : [value]).filter(Boolean);
+  const idOf = (value) => (typeof value === 'string' ? value : value?.semanticId);
+
+  const offers = asArray(dfcLine.concerns);
+
+  for (const offer of offers) {
+    for (const catalogItem of asArray(offer?.offers)) {
+      // Resolved object: the product is right there on `references`.
+      const references = asArray(catalogItem?.references);
+      if (references.length > 0) {
+        return idOf(references[0]);
+      }
+
+      // Unresolved id: our CatalogItems are minted as `<product>/CatalogItem`,
+      // so the product id is the prefix. Anything else is not ours to guess at.
+      const id = idOf(catalogItem);
+      if (typeof id === 'string' && id.endsWith('/CatalogItem')) {
+        return id.slice(0, -'/CatalogItem'.length);
+      }
+    }
+  }
+
+  return null;
+}
+
+export { suppliedProductIdFor };
+
 export async function dfcLineToShopifyLine(dfcLine) {
-  const concerns = Array.isArray(dfcLine.concerns) ? dfcLine.concerns : [dfcLine.concerns].filter(Boolean);
-  const offer = concerns[0];
-  const resolvedOffer = typeof offer === 'string' ? null : offer;
-  const offers = resolvedOffer && Array.isArray(resolvedOffer.offers)
-    ? resolvedOffer.offers
-    : [resolvedOffer?.offers].filter(Boolean);
-  const product = offers[0];
-  const semanticId = typeof product === 'string' ? product : product?.semanticId;
+  const semanticId = suppliedProductIdFor(dfcLine);
+
   return {
     variantId: ids.variant(ids.extract(semanticId || dfcLine.semanticId)),
     quantity: dfcLine.quantity
@@ -348,22 +384,15 @@ function shopifyOutputLineToInputLine(shopifyOutputLine) {
 }
 
 export async function createUpdatedShopifyLines(draftOrder, dfcOrderLine) {
+  // Resolve once, not per line: the Offer -> CatalogItem -> SuppliedProduct
+  // walk does not depend on the line being replaced.
+  const dfcSemanticId = suppliedProductIdFor(dfcOrderLine);
+
   const { lines, hasBeenReplacement } = await draftOrder.lineItems.reduce(
     async (accumulator, shopifyOutputLine) => {
       const { lines, hasBeenReplacement } = await accumulator;
 
-      const concerns = Array.isArray(dfcOrderLine.concerns)
-        ? dfcOrderLine.concerns
-        : [dfcOrderLine.concerns].filter(Boolean);
-      const offer = concerns[0];
-      const resolvedOffer = typeof offer === 'string' ? null : offer;
-      const offers = resolvedOffer && Array.isArray(resolvedOffer.offers)
-        ? resolvedOffer.offers
-        : [resolvedOffer?.offers].filter(Boolean);
-      const product = offers[0];
-      const semanticId = typeof product === 'string' ? product : product?.semanticId;
-
-      if (ids.extract(shopifyOutputLine.variant.id) === ids.extract(semanticId || dfcOrderLine.semanticId)) {
+      if (ids.extract(shopifyOutputLine.variant.id) === ids.extract(dfcSemanticId || dfcOrderLine.semanticId)) {
         return { lines: [...lines, await dfcLineToShopifyLine(dfcOrderLine)], hasBeenReplacement: true };
       }
       return { lines: [...lines, shopifyOutputLineToInputLine(shopifyOutputLine)], hasBeenReplacement };

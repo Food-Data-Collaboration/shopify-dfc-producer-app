@@ -147,7 +147,10 @@ describe('orders', () => {
         expect(orders.length).toBeGreaterThan(0);
     }, timeout);
 
-    async function asArray(value) {
+    // Synchronous on purpose: callers use the result immediately
+    // (`.filter(...)`), so an `async` helper here returned a Promise and every
+    // one of those calls failed with '.filter is not a function'.
+    function asArray(value) {
         return Array.isArray(value) ? value : [value];
     }
 

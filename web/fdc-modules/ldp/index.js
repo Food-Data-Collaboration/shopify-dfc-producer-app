@@ -149,33 +149,40 @@ export const etagFor = (payload) => {
 };
 
 /**
- * RFC 7232 weak comparison: drop the `W/` prefix and the surrounding quotes,
- * leaving just the value to compare. Uses `slice` rather than `/^"|"$/g` —
- * the request-supplied string is short, but an anchored alternation on
- * attacker-controlled input is the shape CodeQL flags as polynomial.
+ * RFC 7232 strong comparison for `If-Match`: the two validators must be
+ * byte-identical, *including* the weakness marker. A weak `If-Match` therefore
+ * never matches a strong validator (and vice versa), which is what stops a
+ * client claiming a resource matches when we only know its bytes are
+ * semantically equivalent. `If-None-Match` uses weak comparison instead, which
+ * is what RFC 7232 mandates for it.
  */
-const normaliseEtag = (value) => {
-  const trimmed = String(value).trim();
+const strongCompare = (a, b) => String(a).trim() === String(b).trim();
 
+/** Strong comparison over a list of validators, for `If-Match`. */
+const strongMatch = (header, currentEtag) =>
+  header.split(',').map((part) => part.trim()).filter(Boolean)
+    .some((tag) => strongCompare(tag, currentEtag));
+
+const weakNormalise = (value) => {
+  const trimmed = String(value).trim();
   const unprefixed = trimmed.startsWith('W/') ? trimmed.slice(2) : trimmed;
-  const unquoted = unprefixed.length >= 2
+  return unprefixed.length >= 2
     && unprefixed.startsWith('"')
     && unprefixed.endsWith('"')
     ? unprefixed.slice(1, -1)
     : unprefixed;
-
-  return unquoted;
 };
 
 const parseEtagList = (header) =>
-  header.split(',').map((part) => normaliseEtag(part)).filter(Boolean);
+  header.split(',').map((part) => weakNormalise(part)).filter(Boolean);
 
+/** Weak comparison, for `If-None-Match` and `If-Match: *`. */
 const matches = (header, currentEtag) => {
   const tags = parseEtagList(header);
   if (tags.includes('*')) {
     return true;
   }
-  return tags.includes(normaliseEtag(currentEtag));
+  return tags.includes(weakNormalise(currentEtag));
 };
 
 /**
@@ -199,7 +206,13 @@ export const checkPreconditions = (req, currentEtag) => {
       };
     }
     try {
-      if (!matches(ifMatch, currentEtag)) {
+      // `*` still means "the resource exists", but a concrete validator must
+      // match strongly per RFC 7232 3.1.
+      const satisfied = ifMatch.trim() === '*'
+        ? true
+        : strongMatch(ifMatch, currentEtag);
+
+      if (!satisfied) {
         return {
           status: 412,
           title: 'Precondition failed',
@@ -282,6 +295,7 @@ export const sendLdp = (req, res, status, body, options = {}) => {
   const {
     container = false,
     member = false,
+    writable = false,
     location,
     link = [],
     allow,
@@ -336,12 +350,15 @@ export const sendLdp = (req, res, status, body, options = {}) => {
   if (allow) {
     res.set('Allow', allow);
   }
-  // Containers accept POST; members accept PATCH. Advertise both everywhere we
-  // might accept a write, matching DjangoLDP's blanket behaviour.
-  if (container) {
+  // Only advertise a write media type on a route that actually accepts the
+  // write. Advertising `Accept-Post` on a read-only container invites a client
+  // to publish there and collect a 405 it had no way to anticipate.
+  if (container && writable) {
     res.set('Accept-Post', LDP_CONTENT_TYPES);
   }
-  res.set('Accept-Patch', LDP_CONTENT_TYPES);
+  if (member && writable) {
+    res.set('Accept-Patch', LDP_CONTENT_TYPES);
+  }
 
   return res.send(payload);
 };
@@ -371,7 +388,9 @@ export const sendWriteResult = (req, res, options = {}) => {
  * anything else as an opaque failure, but a machine-readable problem shape
  * (rather than a bare `.end()`) is what makes 401/403/412 debuggable.
  */
-export const sendProblem = (req, res, status, { title, detail, type } = {}) => {
+export const sendProblem = (req, res, status, {
+  title, detail, type, allow
+} = {}) => {
   const problem = {
     type: type || 'about:blank',
     title: title || res.phrase || 'Error',
@@ -381,6 +400,11 @@ export const sendProblem = (req, res, status, { title, detail, type } = {}) => {
 
   if (req?.params?.EnterpriseName) {
     problem.enterprise = containerUri('api/dfc/Enterprises', req.params.EnterpriseName);
+  }
+
+  // A 405 or 501 is only actionable if it says what *is* allowed.
+  if (allow) {
+    res.set('Allow', allow);
   }
 
   return sendLdp(req, res, status, problem);
@@ -426,7 +450,12 @@ export const parseLdpBody = (req) => {
 /** The verbs an LDP container or member accepts, for the `Allow` header. */
 const allowedMethods = ({ container, writable }) => {
   if (container) {
-    return ['GET', 'POST', 'HEAD', 'OPTIONS'];
+    // Only advertise POST on a container that actually accepts one. Telling a
+    // client it may publish to a read-only container sends it into a 405 it
+    // had no way to anticipate.
+    return writable
+      ? ['GET', 'POST', 'HEAD', 'OPTIONS']
+      : ['GET', 'HEAD', 'OPTIONS'];
   }
   if (writable) {
     return ['GET', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -446,10 +475,13 @@ export const ldpOptions = ({ container, writable }) => {
 
   return (req, res) => {
     res.set('Allow', allow.join(', '));
-    if (container) {
-      res.set('Accept-Post', LDP_CONTENT_TYPES);
-    } else {
-      res.set('Accept-Patch', LDP_CONTENT_TYPES);
+    // Only advertise the write media type the route actually accepts.
+    if (writable) {
+      if (container) {
+        res.set('Accept-Post', LDP_CONTENT_TYPES);
+      } else {
+        res.set('Accept-Patch', LDP_CONTENT_TYPES);
+      }
     }
     res.set(
       'Link',

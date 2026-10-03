@@ -80,7 +80,10 @@ const profile = (req, res) => sendLdp(req, res, 200, {
     {
       '@id': profileUri(),
       '@type': 'foaf:PersonalProfileDocument',
-      'foaf:primaryTopic': meUri()
+      // Without an explicit `@type: @id` this serialises as an RDF literal
+      // rather than a link, so a JSON-LD consumer cannot traverse from the
+      // profile document to the WebID node.
+      'foaf:primaryTopic': { '@id': meUri(), '@type': '@id' }
     },
     {
       '@id': meUri(),

@@ -19,7 +19,7 @@ import getOrderLine from './controllers/get-order-line.js';
  */
 const fdcOrderRoutes = Router({ mergeParams: true });
 
-fdcOrderRoutes.options('/', ldpOptions({ container: true, writable: false }));
+fdcOrderRoutes.options('/', ldpOptions({ container: true, writable: true }));
 fdcOrderRoutes.get('/', getAllOrders);
 fdcOrderRoutes.post('/', create);
 

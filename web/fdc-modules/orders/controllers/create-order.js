@@ -75,6 +75,7 @@ const createOrder = async (req, res) => {
     status: 200,
     body: dfcOrder,
     member: true,
+    writable: true,
     location: orderMemberUri(req.params.EnterpriseName, draftOrderId)
   });
 };
