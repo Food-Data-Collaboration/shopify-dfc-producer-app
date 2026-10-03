@@ -2,7 +2,7 @@ import { parseProductTypesFromJson } from '../../../utils/productTypes.js';
 
 export default async function getProductTypes(req, res) {
   try {
-    const parsedProductTypes = parseProductTypesFromJson();
+    const parsedProductTypes = await parseProductTypesFromJson();
 
     res.json(parsedProductTypes);
   } catch (error) {

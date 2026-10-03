@@ -1,21 +1,5 @@
 import { query } from '../database/connect.js';
-
-const SCOPE_MAPPING = {
-  GET: {
-    '/api/dfc/Enterprises/:EnterpriseName': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise',
-    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadOrders',
-    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadProducts',
-    '/api/dfc/Enterprises/:EnterpriseName/Portals': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#ReadEnterprise'
-  },
-  POST: {
-    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteOrders',
-    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteProducts',
-  },
-  PUT: {
-    '/api/dfc/Enterprises/:EnterpriseName/Orders': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteOrders',
-    '/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts': 'https://github.com/datafoodconsortium/taxonomies/releases/latest/download/scopes.rdf#WriteProducts',
-  }
-};
+import { getRequiredScope } from '../fdc-modules/scopes/matrix.js';
 
 const checkScopePermissions = async (req, res, next) => {
   try {
@@ -39,12 +23,18 @@ const checkScopePermissions = async (req, res, next) => {
       });
     }
 
-    const requiredScope = getRequiredScope(req.route?.path || req.path, method);
+    // This middleware runs on an `app.use` mount, so express strips the mount
+    // path: `req.path` is relative ('/' for the container, '/42' for a member)
+    // and `req.route` is undefined. Rejoin baseUrl + path to get the absolute
+    // path the matrix is keyed on, and fall back to the raw path for safety.
+    const absolutePath = `${req.baseUrl || ''}${req.path || ''}`.replace(/\/+$/, '') || '/';
+    const requiredScope = getRequiredScope(absolutePath, method)
+      ?? getRequiredScope(req.route?.path || req.path, method);
 
     if (!requiredScope) {
       return res.status(404).json({
         message: 'Endpoint not found or not supported',
-        error: 'Invalid endpoint'
+        error: `No DFC scope is defined for ${method} ${absolutePath}`
       });
     }
 
@@ -66,34 +56,6 @@ const checkScopePermissions = async (req, res, next) => {
       error: error.message
     });
   }
-};
-
-const getRequiredScope = (path, method) => {
-  const methodScopes = SCOPE_MAPPING[method];
-
-  if (!methodScopes) {
-    return null;
-  }
-
-  // Try exact match first
-  if (methodScopes[path]) {
-    return methodScopes[path];
-  }
-
-  // Try pattern matching for parameterized routes
-  for (const [pattern, scope] of Object.entries(methodScopes)) {
-    if (matchRoute(pattern, path)) {
-      return scope;
-    }
-  }
-
-  return null;
-};
-
-const matchRoute = (pattern, path) => {
-  // Convert pattern like '/api/dfc/Enterprises/:EnterpriseName' to regex
-  const regex = pattern.replace(/:[^/]+/g, '[^/]+');
-  return new RegExp(`^${regex}$`).test(path);
 };
 
 const checkPlatformPermissions = async (platformId, shopName, requiredScope) => {

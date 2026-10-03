@@ -17,7 +17,7 @@
     "test:e2e:build": "cross-env SHOPIFY_API_KEY=test-mock-key yarn --cwd web/frontend build && NODE_ENV=production MOCK_BRIDGE=1 playwright test"
   },
   "dependencies": {
-    "@datafoodconsortium/connector": "1.0.0-beta.2",
+    "@siol-data/linkml-connector": "npm:@jsr/siol-data__linkml-connector@2.0.5",
     "@shopify/cli": "3.78.2",
     "babel-jest": "^29.5.0",
     "body-parser": "^1.20.2",

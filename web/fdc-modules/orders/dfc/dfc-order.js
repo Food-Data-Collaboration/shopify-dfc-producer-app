@@ -1,14 +1,29 @@
-import { OrderLine, Order, SaleSession } from '@datafoodconsortium/connector';
-import { normalizeContext } from '../../../connector/dfcContext.js';
+import { OrderLine, Order, SaleSession } from '@siol-data/linkml-connector';
 import loadConnectorWithResources from '../../../connector/index.js';
 import * as ids from '../controllers/shopify/ids.js';
 import config from '../../../config.js';
 import currencyMeasureFor from '../../../utils/currencyMeasureFor.js';
 
+/**
+ * Deterministic blank-node id for an order line's Price.
+ *
+ * The module-wide counter this replaced advanced on *every* serialisation, so
+ * two GETs of an unchanged order produced different bytes and therefore
+ * different ETags — a conditional GET could never return 304. Deriving the id
+ * from the order and line it belongs to makes the graph byte-identical for
+ * identical data, which is what makes `If-None-Match` and `If-Match` work.
+ */
+const priceIdFor = (orderId, externalLineId) => `_:price_${orderId}_${externalLineId}`;
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [value];
+}
+
 export async function extractOrderLine(payload) {
   const connector = await loadConnectorWithResources();
 
-  const orderLines = (await connector.import(normalizeContext(payload))).filter(
+  const deserialised = asArray(connector.import(payload));
+  const orderLines = deserialised.filter(
     (item) => item instanceof OrderLine
   );
 
@@ -30,7 +45,7 @@ export async function extractOrderAndLines(payload) {
 async function extract(payload, requireSalesSession) {
   const connector = await loadConnectorWithResources();
 
-  const deserialised = await connector.import(normalizeContext(payload));
+  const deserialised = asArray(connector.import(payload));
 
   const orders = deserialised.filter((item) => item instanceof Order);
 
@@ -46,7 +61,11 @@ async function extract(payload, requireSalesSession) {
 
   const order = orders[0];
 
-  if ((await order.getLines()).length !== lines.length) {
+  const orderParts = Array.isArray(order.hasPart)
+    ? order.hasPart
+    : [order.hasPart].filter(Boolean);
+
+  if (lines.length !== orderParts.length) {
     throw Error('Graph is missing OrderLine');
   }
 
@@ -66,13 +85,11 @@ function createOrderLine(
   enterpriseName,
   orderId
 ) {
-  const suppliedProduct = connector.createSuppliedProduct({
-    semanticId: `${
-      config.HOST
-    }api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${ids.extract(
+  const suppliedProduct = connector.createSuppliedProduct(
+    `${config.HOST}api/dfc/Enterprises/${enterpriseName}/SuppliedProducts/${ids.extract(
       line.variant.id
     )}`
-  });
+  );
 
   const mapping = lineIdMappings.find(
     ({ shopifyId }) => shopifyId.toString() === ids.extract(line.id)
@@ -83,35 +100,49 @@ function createOrderLine(
     );
   }
 
-  const madeUpIdForTheOfferSoTheConnectorWorks = `${
-    config.HOST
-  }api/dfc/Enterprises/${enterpriseName}/Offers/${ids.extract(
+  const madeUpIdForTheOfferSoTheConnectorWorks = `${config.HOST}api/dfc/Enterprises/${enterpriseName}/Offers/${ids.extract(
     line.variant.id
   )}`;
 
-  const offer = connector.createOffer({
-    semanticId: madeUpIdForTheOfferSoTheConnectorWorks,
-    offeredItem: suppliedProduct
-  });
-
   const { amount, currencyCode } = line.originalUnitPriceSet.shopMoney;
 
-  const price = connector.createPrice({
+  // Price extends QuantitativeValue in v2 (value + currency unit + vatRate).
+  const price = connector.createPrice(priceIdFor(orderId, mapping.externalId), {
     value: amount,
-    unit: currencyMeasureFor(connector, currencyCode)
+    hasUnit: currencyMeasureFor(connector, currencyCode),
+    vatRate: 0
+  });
+
+  // In v2 `dfc-b:Offer.offers` points at a CatalogItem, and the CatalogItem's
+  // `references` reaches the SuppliedProduct. Pointing `offers` straight at
+  // the product produces a graph a v2 hub cannot traverse, and makes a
+  // consumer treat the last URI segment as a product id.
+  const catalogItem = connector.createCatalogItem(
+    `${suppliedProduct.semanticId}/CatalogItem`,
+    {
+      references: suppliedProduct.semanticId,
+      hasPrice: price.semanticId
+    }
+  );
+
+  const offer = connector.createOffer(madeUpIdForTheOfferSoTheConnectorWorks, {
+    offers: catalogItem.semanticId,
+    hasPrice: price.semanticId
   });
 
   return [
     suppliedProduct,
+    catalogItem,
     offer,
-    connector.createOrderLine({
-      semanticId: `${
-        config.HOST
-      }api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}/orderLines/${mapping.externalId.toString()}`,
-      offer,
-      price,
-      quantity: line.quantity
-    })
+    connector.createOrderLine(
+      `${config.HOST}api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}/orderLines/${mapping.externalId.toString()}`,
+      {
+        concerns: [offer.semanticId],
+        hasPrice: price.semanticId,
+        quantity: line.quantity
+      }
+    ),
+    price
   ];
 }
 
@@ -151,15 +182,19 @@ async function createUnexportedDfcOrderFromShopify(
     orderId
   );
 
-  const order = connector.createOrder({
-    semanticId: `${config.HOST}api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}`,
-    lines: dfcOrderLinesGraph.filter((item) => item instanceof OrderLine),
-    orderStatus: orderStatusFor(connector, shopifyDraftOrderResponse.status),
-    fulfilmentStatus: fulfilmentStatusFor(
-      connector,
-      shopifyDraftOrderResponse.order
-    )
-  });
+  const orderLines = dfcOrderLinesGraph.filter((item) => item instanceof OrderLine);
+
+  const order = connector.createOrder(
+    `${config.HOST}api/dfc/Enterprises/${enterpriseName}/Orders/${orderId}`,
+    {
+      hasPart: orderLines.map((l) => l.semanticId),
+      hasOrderStatus: orderStatusFor(connector, shopifyDraftOrderResponse.status),
+      hasFulfilmentStatus: fulfilmentStatusFor(
+        connector,
+        shopifyDraftOrderResponse.order
+      )
+    }
+  );
 
   return [order, ...dfcOrderLinesGraph];
 }
@@ -175,7 +210,7 @@ export async function createDfcOrderFromShopify(
     lineIdMappings,
     enterpriseName
   );
-  return connector.export(graph);
+  return connector.export(...graph);
 }
 
 export async function createBulkDfcOrderFromShopify(
@@ -203,7 +238,7 @@ export async function createBulkDfcOrderFromShopify(
     })
   );
 
-  return connector.export(megaGraph.flat());
+  return connector.export(...megaGraph.flat());
 }
 
 export async function createDfcOrderLinesFromShopify(
@@ -222,7 +257,7 @@ export async function createDfcOrderLinesFromShopify(
     orderId
   );
 
-  return connector.export(dfcOrderLines);
+  return connector.export(...dfcOrderLines);
 }
 
 export async function createDfcOrderLineFromShopify(
@@ -247,15 +282,15 @@ export async function createDfcOrderLineFromShopify(
   );
 
   return connector.export(
-    createOrderLine(connector, line, lineIdMappings, enterpriseName, orderId)
+    ...createOrderLine(connector, line, lineIdMappings, enterpriseName, orderId)
   );
 }
 
 function orderStatusFor(connector, shopifyDraftOrderStatus) {
   const status = {
-    OPEN: connector.VOCABULARY.STATES.ORDERSTATE.HELD,
-    INVOICE_SENT: connector.VOCABULARY.STATES.ORDERSTATE.HELD,
-    COMPLETED: connector.VOCABULARY.STATES.ORDERSTATE.COMPLETE
+    OPEN: 'dfc-v:Held',
+    INVOICE_SENT: 'dfc-v:Held',
+    COMPLETED: 'dfc-v:Complete'
   }[shopifyDraftOrderStatus];
 
   if (!status) {
@@ -273,17 +308,15 @@ function fulfilmentStatusFor(connector, order) {
   }
 
   const status = {
-    FULFILLED: connector.VOCABULARY.STATES.FULFILMENTSTATE.FULFILLED,
-    IN_PROGRESS: connector.VOCABULARY.STATES.FULFILMENTSTATE.UNFULFILLED,
-    ON_HOLD: connector.VOCABULARY.STATES.FULFILMENTSTATE.HELD,
-    OPEN: connector.VOCABULARY.STATES.FULFILMENTSTATE.UNFULFILLED,
-    PARTIALLY_FULFILLED:
-      connector.VOCABULARY.STATES.FULFILMENTSTATE.UNFULFILLED,
-    PENDING_FULFILLMENT:
-      connector.VOCABULARY.STATES.FULFILMENTSTATE.UNFULFILLED,
-    RESTOCKED: connector.VOCABULARY.STATES.FULFILMENTSTATE.UNFULFILLED,
-    SCHEDULED: connector.VOCABULARY.STATES.FULFILMENTSTATE.HELD,
-    UNFULFILLED: connector.VOCABULARY.STATES.FULFILMENTSTATE.UNFULFILLED
+    FULFILLED: 'dfc-v:Fulfilled',
+    IN_PROGRESS: 'dfc-v:Unfulfilled',
+    ON_HOLD: 'dfc-v:Held',
+    OPEN: 'dfc-v:Unfulfilled',
+    PARTIALLY_FULFILLED: 'dfc-v:Unfulfilled',
+    PENDING_FULFILLMENT: 'dfc-v:Unfulfilled',
+    RESTOCKED: 'dfc-v:Unfulfilled',
+    SCHEDULED: 'dfc-v:Held',
+    UNFULFILLED: 'dfc-v:Unfulfilled'
   }[order.displayFulfillmentStatus];
 
   if (!status) {

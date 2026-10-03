@@ -1,4 +1,4 @@
-import { Offer, OrderLine, SuppliedProduct } from '@datafoodconsortium/connector';
+import { CatalogItem, Offer, OrderLine, SuppliedProduct } from '@siol-data/linkml-connector';
 import loadConnectorWithResources from '../../../../connector/index.js';
 import {createUpdatedShopifyLines} from './orders.js'
 
@@ -34,12 +34,15 @@ describe('Orders', () => {
     })
 
     it('Will merge existing lines with a new dfc line to produce the shopify order line input shape', async () => {
-        const newDfcLine = new OrderLine({
-            connector,
-            semanticId: 'http://test.host/api/dfc/Enterprises/10000/Orders/10001/orderlines/10001-01',
-            quantity: 7,
-            offer: new Offer({ connector, semanticId: "999", offeredItem: new SuppliedProduct({connector, semanticId: "999"}) })
-        });
+        // v2 shape: OrderLine -> Offer -> CatalogItem -> SuppliedProduct.
+        // The variant id comes from the product, three hops out.
+        const suppliedProduct = new SuppliedProduct('999');
+        const catalogItem = new CatalogItem('999/CatalogItem', { references: [suppliedProduct] });
+        const offer = new Offer('999/Offer', { offers: [catalogItem] });
+        const newDfcLine = new OrderLine(
+            'http://test.host/api/dfc/Enterprises/10000/Orders/10001/orderlines/10001-01',
+            { quantity: 7, concerns: [offer] }
+        );
 
         expect(await createUpdatedShopifyLines(draftOrder, newDfcLine)).toStrictEqual([
             {variantId: "gid://shopify/ProductVariant/99", quantity: 5},
@@ -49,16 +52,36 @@ describe('Orders', () => {
     });
 
     it('Will merge existing lines with an updated dfc line (matched on variant) to produce the shopify order line input shape', async () => {
-        const updatedDfcLine = new OrderLine({
-            connector,
-            semanticId: 'http://test.host/api/dfc/Enterprises/10000/Orders/10001/orderlines/10001-01',
-            quantity: 7,
-            offer: new Offer({ connector, semanticId: "100", offeredItem: new SuppliedProduct({connector, semanticId: "100"}) })
-        });
+        const updatedSuppliedProduct = new SuppliedProduct('100');
+        const updatedCatalogItem = new CatalogItem('100/CatalogItem', { references: [updatedSuppliedProduct] });
+        const updatedOffer = new Offer('100/Offer', { offers: [updatedCatalogItem] });
+        const updatedDfcLine = new OrderLine(
+            'http://test.host/api/dfc/Enterprises/10000/Orders/10001/orderlines/10001-01',
+            { quantity: 7, concerns: [updatedOffer] }
+        );
 
         expect(await createUpdatedShopifyLines(draftOrder, updatedDfcLine)).toStrictEqual([
             {variantId: "gid://shopify/ProductVariant/99", quantity: 5},
             {variantId: "gid://shopify/ProductVariant/100", quantity: 7},
         ]);
+    });
+
+    it('resolves the product through an unresolved CatalogItem id', async () => {
+        // When the connector hands back ids rather than resolved objects the
+        // CatalogItem is still recognisable by its `/CatalogItem` suffix.
+        const newDfcLine = new OrderLine(
+            'http://test.host/api/dfc/Enterprises/10000/Orders/10001/orderlines/10001-01',
+            {
+                quantity: 7,
+                concerns: [new Offer('o', { offers: ['777/CatalogItem'] })]
+            }
+        );
+
+        const lines = await createUpdatedShopifyLines(draftOrder, newDfcLine);
+
+        expect(lines).toContainEqual({
+            variantId: 'gid://shopify/ProductVariant/777',
+            quantity: 7
+        });
     });
 });
