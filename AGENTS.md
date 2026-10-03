@@ -86,6 +86,45 @@ federation, no proxy-import, no CSV import, no persons container.
   never turn a 201 into an open redirect; `X-Content-Type-Options: nosniff` is
   set because Express defaults a string body to `text/html`; and
   `containerUri` strips `.`/`..` from route-param segments.
+- **Writable DFC predicates on a SuppliedProduct member** — deliberately
+  narrow, because Shopify decides what is possible, not us:
+  | DFC predicate | Lands on | Notes |
+  |---|---|---|
+  | `dfc-b:value` + `dfc-b:hasUnit` | variant `price` | a unit that is not the shop currency is **rejected (422)**, never converted |
+  | `dfc-b:sku` (on the CatalogItem) | variant `inventoryItem.sku` | |
+  | `dfc-b:name` | parent product `title` | a *variant* title is derived from its option values and is not writable |
+  | `dfc-b:description` | product `descriptionHtml` | cleared by PUT, left alone by PATCH |
+  | `dfc-b:Image` | — | **rejected (422)**; Shopify attaches variant media via a separate mutation argument and cannot replace existing variant images |
+  Everything else is read-only. `ProductVariantsBulkInput` has no `title` or
+  `imageSrc` — sending either makes GraphQL reject the whole mutation before
+  it writes anything. `PRODUCT_VARIANT_BULK_INPUT_FIELDS` in
+  `mutations.js` is the authoritative list and `mutations.spec.js` asserts the
+  builder against it, precisely because a mocked `client.request` cannot catch
+  an invalid mutation shape.
+- **DFC v2 traversal is `OrderLine -> Offer -> CatalogItem -> SuppliedProduct`**
+  (`dfc_business_linkml_v2_0.yaml`: `Offer.offers -> CatalogItem`,
+  `CatalogItem.references -> DefinedProduct`). Reading `offers[0]` as the
+  product sends the literal string `CatalogItem` as a Shopify variant id.
+  Use `suppliedProductIdFor()` in `orders/controllers/shopify/orders.js`.
+  Note v2 has **no `referencedBy` on SuppliedProduct** (that slot only exists on
+  `DFC_DitributedRepresentation`), so the CatalogItem is reachable from the
+  Offer side, not via a back-link from the product.
+- **The member `@id` is a Shopify *variant* id**; `fdc_variants.retail_variant_id`
+  is the anchor, so it is stable for the variant's life. GET resolves it
+  through `findPublishedMapping` first, because querying `product_id` directly
+  404s whenever the two differ. A *product* id also still works (legacy route
+  shape) and returns the whole product group.
+- **LDP `OPTIONS` routes are mounted in `app.js`, not in the routers.** Two
+  reasons: `cors()` answers OPTIONS itself unless `preflightContinue: true`,
+  and `populateShop` answers 404 for an unknown shop — which a hub cannot
+  supply when it is only asking what it may do. `corsPreflight()` exists for
+  the first. `ldp/discovery.spec.js` loads the real app and asserts all six
+  endpoints; that wiring is invisible to handler-level unit tests.
+- **Blank-node ids must be derived from the resource, never a module counter.**
+  A counter advances on every serialisation, so two GETs of unchanged data
+  differ and no conditional request can ever return 304. Order Prices use
+  `priceIdFor(orderId, lineId)`; product blank nodes are already scoped to
+  their variant URI.
 - DB multi-tenant: central `shop_registry` → per-shop pools via `web/database/connect.js:getShopDbConnection(shopId)`, SSL `rejectUnauthorized:false`. Schema per module (`web/database/{shop_registry,orders,portals,users,...}/schema.sql`); `migrations.sql` + `auto-timestamp.sql`.
 - Connector singleton `web/connector/index.js` — lazy, cached `new Connector()` (bundled v2 taxonomies, no init files).
 - Frontend `web/frontend/` — Vite + React + Polaris, `vite build` → `web/frontend/dist`, served by Express static. `dev_embed.js` for Shopify.
@@ -109,14 +148,16 @@ federation, no proxy-import, no CSV import, no persons container.
 ## Tests
 
 - Jest `jest.config.js` (`ts-jest` + `babel-jest`, `transformIgnorePatterns:[]`, `testPathIgnorePatterns:['/node_modules/','acceptance-tests','e2e']`, `moduleNameMapper` resolves connector). `test-setup.js` closes `pool` after all.
-- Mix `.spec.js`/`.test.js`. DB-dependent tests (`web/database/{line_items,orders,sales_sessions}`, `lineItemMappings.spec.js`) need Postgres — run `./scripts/setup-test-db.sh` first, or they fail with `getaddrinfo EAI_AGAIN` (a missing `DATABASE_HOST_URL`, not a DNS problem). Full green suite is 163 tests / 16 suites.
+- Mix `.spec.js`/`.test.js`. DB-dependent tests (`web/database/{line_items,orders,sales_sessions}`, `lineItemMappings.spec.js`) need Postgres — run `./scripts/setup-test-db.sh` first, or they fail with `getaddrinfo EAI_AGAIN` (a missing `DATABASE_HOST_URL`, not a DNS problem). Full green suite is 212 tests / 19 suites.
 - `lineItemMappings.spec.js` fixtures use a flat `lineItems: [...]` array, not `{ edges: [...] }` — the callers in `orders.js` flatten `lineItems.nodes` first.
 - LDP suites: `web/fdc-modules/{ldp,scopes,profile,products,orders}/*.spec.js` — all DB-free. `products/ldp.spec.js` mocks `shopify.js`, `getShopifySession.js` and the variants table, so it needs neither. In specs, read member URIs from `config.HOST` (`web/.env` sets it to `http://localhost:3629/`), and mock the Shopify client with a class *inside* the `jest.mock` factory since jest hoists the call.
+- `web/jest-ldp-env.js` is a jest `setupFiles` entry that forces `NODE_ENV=development` and sets the Shopify keys + `MOCK_BRIDGE`. Needed by `ldp/discovery.spec.js`, which imports the real `web/app.js`: jest sets `NODE_ENV=test` and `web/shopify.js` only passes `apiSecretKey` when `NODE_ENV` is exactly `development`. It cannot be done inside the spec — babel-jest hoists requires above top-level statements.
+- **Reviews arrive on two channels.** CodeQL posts inline comments, but Copilot files everything as a *single review body* (`gh pr view <n> --json reviews`), which the inline-comments endpoint does not return. Check both before assuming a review is fully addressed.
 - E2E: Playwright `playwright.config.js` (workers 1, `baseURL http://localhost:3080`, `global-setup/teardown`, `webServer` spawns `node index.js` in `web/` with `MOCK_BRIDGE=1`, `SHOPIFY_API_KEY=test-mock-key`). Needs `yarn --cwd web/frontend build` first unless using `test:e2e:build`.
 
 ## Gotchas
 
-- Blank node IDs are global counter — `b1` in isolation becomes `b17` in full suite. Always copy `Received:` from the failing `npm test` run, don't generate in a standalone script.
+- Blank node IDs in the **test fixtures** are a global counter — `b1` in isolation becomes `b17` in the full suite. Always copy `Received:` from the failing `npm test` run, don't generate in a standalone script. (Production code no longer uses a shared counter: see the blank-node note in the LDP section above.)
 - `HOST` trailing slash matters for products/orders (`${config.HOST}api/dfc/...` in `productUtils.js`, `dfc-order.js`); portals/scopes strip it via `.replace(/\/+$/,'')`. Ensure `.env` HOST ends with `/`.
 - `web/database/build.js` requires existing `SHOP_REGISTRY_DATABASE_NAME` DB; `DATABASE_HOST_URL` without db name.
 - Frontend changes need rebuild before `npm run test:e2e` (without `:build`).

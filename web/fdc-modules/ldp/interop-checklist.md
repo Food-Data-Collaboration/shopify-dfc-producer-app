@@ -42,9 +42,12 @@ curl -sS "$HOST/api/scopes" | jq '.["dfc-t:scopes"]["@list"] | length'
 curl -sS -D- -o/dev/null -H "Authorization: JWT $TOKEN" "$base/SuppliedProducts"
 ```
 
-Expect `Content-Type: application/ld+json`, an `ETag`, a `Link` header
-containing `<http://www.w3.org/ns/ldp#Container>`, `Accept-Post`, and
-`Access-Control-Expose-Headers` listing `Link`/`ETag`/`Location`.
+Expect `Content-Type: application/ld+json`, an `ETag`, and a `Link` header
+containing `<http://www.w3.org/ns/ldp#Container>` and
+`<http://www.w3.org/ns/ldp#BasicContainer>`, plus
+`Access-Control-Expose-Headers` listing `Link`/`ETag`/`Location`. The
+`Enterprises` container is read-only so it must **not** carry `Accept-Post`;
+`SuppliedProducts` and `Orders` must.
 
 The body should be an `ldp:Container` **and** carry a top-level `@graph` (the
 same members) for older hubs. Confirm both:
@@ -154,10 +157,18 @@ Then confirm the hub round-trip: a `PUT` that completes an order
   `GET /SuppliedProducts/<productId>` returns the whole product group. Hubs that
   dereference the member `@id` it was handed are fine; a hub that rewrites the
   last path segment will not be.
-- **Blank-node ids are counters** (`_:b1`, `_:qty_1`), so identical data
-  serialises with different blank-node names between processes. This does not
-  break JSON-LD, but it does mean ETags are not stable across restarts — only
-  across requests in one process. If step 3 ever returns 200, this is why.
+- **The DFC graph is v2 throughout:** `OrderLine -> Offer -> CatalogItem ->
+  SuppliedProduct`. A hub that reads `Offer.offers` as the product will resolve
+  to a CatalogItem.
+- **`dfc-b:name` and `dfc-b:Image` are not writable on a member.** `name` lands
+  on the parent product (a variant's title is option-derived and Shopify has no
+  input for it); `Image` is rejected with 422. A hub that round-trips the full
+  representation it read will send `Image` back and get a 422 — the error names
+  the accepted predicates, but it is a contract difference worth confirming
+  against a real hub.
+- **A cross-currency price is rejected.** `dfc-b:hasUnit` must match the shop
+  currency; this dataserver does not convert. A hub offering a EUR price to a
+  GBP shop gets a 422 rather than a silently wrong price.
 - **POST publishes rather than creates.** A hub trying to create a brand-new
-  product will get a 400 asking for `dfc-b:isVariantOf`. That is deliberate; a
-  DFC graph does not carry enough to make a viable catalogue entry.
+  product gets a 400 asking for `dfc-b:isVariantOf`. Deliberate: a DFC graph
+  does not carry enough to make a viable catalogue entry.
