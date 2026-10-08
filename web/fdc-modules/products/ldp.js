@@ -45,6 +45,7 @@ import {
 import shopify from '../../shopify.js';
 import getSession from '../../utils/getShopifySession.js';
 import createDFCProductsFromShopify from './dfc/dfc-products.js';
+import loadConnectorWithResources from '../../connector/index.js';
 import { findFDCProducts, getFdcVariantsFromDB, getFdcVariantsByProductIdFromDB } from './controllers/shopify/products.js';
 import {
   findProductVariants,
@@ -141,7 +142,6 @@ const memberBody = (members) => ({ '@context': V2_CONTEXT, '@graph': members });
 
 const memberEtag = (members) => etagFor(JSON.stringify(memberBody(members), null, 2));
 
-/** The member description for one variant within a built graph. */
 /**
  * The subset of a built graph that are *container members* — the published
  * SuppliedProducts, which are the only nodes with a GET route.
@@ -209,8 +209,10 @@ const extractSuppliedProduct = async (req) => {
     );
   }
 
-  const { Connector } = await import('@siol-data/linkml-connector');
-  const connector = new Connector();
+  // The shared, lazily-created connector from web/connector/index.js. Building
+  // one here would reload the bundled taxonomies on every write request (~2ms)
+  // and give the read and write paths separate connector lifecycles.
+  const connector = await loadConnectorWithResources();
   const imported = connector.import(body);
 
   const suppliedProducts = (Array.isArray(imported) ? imported : [imported])
@@ -436,6 +438,22 @@ const publishSuppliedProduct = async (req, res) => {
     // The variant already has a mapping but the merchant had stopped sharing
     // it. Re-enable that row rather than inserting a duplicate, which would
     // violate the (product_id, retail_variant_id) unique index.
+    //
+    // Only when the row's product is the one the payload names. `findVariant`
+    // only proves the variant *currently* belongs to `parentId`; if the
+    // mapping row is stale (the variant was moved between products in Shopify)
+    // re-enabling would publish it under the old product and return a graph
+    // built from it, silently ignoring what the hub asked for.
+    if (String(existing.productId) !== String(parentId)) {
+      throw fail(
+        `Variant ${variantId} has an existing mapping to product ${existing.productId}, `
+        + `but the payload names product ${parentId}. Publish it against `
+        + `${existing.productId}, or remove the stale mapping first.`,
+        409,
+        'Conflict'
+      );
+    }
+
     await toggleVariantMappingStatus(existing.id, shopName);
   } else {
     await addVariant({

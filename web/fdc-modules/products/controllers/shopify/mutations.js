@@ -103,6 +103,19 @@ const VARIANT_FIELDS = `
 `;
 
 /**
+ * Keys a caller may set on `update`. `productId` is not a variant field — it is
+ * carried alongside purely so the mutation can name its parent product.
+ */
+const WRITABLE_UPDATE_KEYS = [
+  'price',
+  'sku',
+  'compareAtPrice',
+  'inventoryPolicy',
+  'taxable',
+  'productId'
+];
+
+/**
  * Build the `ProductVariantsBulkInput` for one variant.
  *
  * Exported and pure so the tests can assert the shape directly — a mocked
@@ -112,8 +125,28 @@ const VARIANT_FIELDS = `
  * @param {object} update only the keys the caller wants to change
  * @param {number} variantId
  * @returns {object} a valid ProductVariantsBulkInput
+ * @throws {Error} status 400 when `update` carries a key the input cannot hold
  */
 export const buildVariantInput = (update, variantId) => {
+  // Reject unknown keys *before* building the input. Building first and then
+  // inspecting the result cannot work — the input is assembled from a
+  // whitelist, so an unsupported key can never appear in it and a guard on the
+  // output is unreachable. Validating the caller's keys is the only check that
+  // can actually fire, and it converts the original bug (a caller setting
+  // `title` and having it silently vanish) into a loud failure.
+  const unsupported = Object.keys(update || {})
+    .filter((key) => !WRITABLE_UPDATE_KEYS.includes(key));
+
+  if (unsupported.length > 0) {
+    throw badRequest(
+      `Cannot write ${unsupported.join(', ')} on a Shopify variant. `
+      + `Supported: ${WRITABLE_UPDATE_KEYS.filter((k) => k !== 'productId').join(', ')}. `
+      + 'Note that ProductVariantsBulkInput has no `title` or `imageSrc`: a '
+      + 'variant title comes from its option values, and variant media is set '
+      + 'through the mutation\'s separate `media` argument.'
+    );
+  }
+
   const input = { id: gid('ProductVariant', variantId) };
 
   if (update.price !== undefined && update.price !== null) {
@@ -137,9 +170,7 @@ export const buildVariantInput = (update, variantId) => {
     input.taxable = update.taxable;
   }
 
-  // Defence in depth: if a future caller adds a key that slipped past the
-  // whitelist, fail here rather than letting Shopify reject the whole mutation
-  // with an opaque validation error.
+  // Belt and braces: whatever we did assemble must still be a valid input.
   const stray = Object.keys(input).filter(
     (key) => !PRODUCT_VARIANT_BULK_INPUT_FIELDS.includes(key)
   );

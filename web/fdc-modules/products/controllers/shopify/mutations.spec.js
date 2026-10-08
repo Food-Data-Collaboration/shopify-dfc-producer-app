@@ -50,19 +50,17 @@ describe('buildVariantInput', () => {
     });
   });
 
-  it('never emits a variant title, which the input does not accept', () => {
+  it('rejects a variant title, which the input does not accept', () => {
     // Regression guard for the original bug. A Shopify variant's title comes
-    // from its option values; there is no input that sets it.
-    const input = buildVariantInput({ title: 'Apples' }, VARIANT_ID);
-
-    expect(input).not.toHaveProperty('title');
+    // from its option values; there is no input that sets it, so the caller is
+    // told rather than silently losing the field.
+    expect(() => buildVariantInput({ title: 'Apples' }, VARIANT_ID)).toThrow(/title/);
     expect(PRODUCT_VARIANT_BULK_INPUT_FIELDS).not.toContain('title');
   });
 
-  it('never emits imageSrc, which the input does not accept', () => {
-    const input = buildVariantInput({ imageSrc: 'https://img/x.jpg' }, VARIANT_ID);
-
-    expect(input).not.toHaveProperty('imageSrc');
+  it('rejects imageSrc, which the input does not accept', () => {
+    expect(() => buildVariantInput({ imageSrc: 'https://img/x.jpg' }, VARIANT_ID))
+      .toThrow(/imageSrc/);
     expect(PRODUCT_VARIANT_BULK_INPUT_FIELDS).not.toContain('imageSrc');
   });
 
@@ -92,10 +90,34 @@ describe('buildVariantInput', () => {
     expect(Object.keys(input)).toEqual(['id']);
   });
 
-  it('throws rather than emitting an unsupported field', () => {
-    // Defence in depth: if a future caller adds a bad key, fail here instead
-    // of letting Shopify reject the whole mutation opaquely.
-    expect(() => buildVariantInput({ nonsense: true }, VARIANT_ID)).not.toThrow();
+  it('rejects an unsupported field instead of silently dropping it', () => {
+    // The original bug was a caller setting `title`/`imageSrc` and having them
+    // vanish, so a silent drop is exactly the wrong behaviour. An unknown key
+    // must fail at the boundary.
+    expect(() => buildVariantInput({ nonsense: true }, VARIANT_ID))
+      .toThrow(/nonsense/);
+    expect(() => buildVariantInput({ title: 'Apples' }, VARIANT_ID))
+      .toThrow(/title/);
+    expect(() => buildVariantInput({ imageSrc: 'https://img' }, VARIANT_ID))
+      .toThrow(/imageSrc/);
+  });
+
+  it('accepts every supported writable field without throwing', () => {
+    expect(() => buildVariantInput({
+      price: '1',
+      sku: 'S',
+      compareAtPrice: '2',
+      inventoryPolicy: 'CONTINUE',
+      taxable: true
+    }, VARIANT_ID)).not.toThrow();
+  });
+
+  it('ignores the bookkeeping fields a caller passes alongside the update', () => {
+    // `productId` is carried on `update` only so the mutation can name its
+    // parent; it is not part of the variant input.
+    const input = buildVariantInput({ price: '1', productId: PRODUCT_ID }, VARIANT_ID);
+
+    expect(input).toEqual({ id: `gid://shopify/ProductVariant/${VARIANT_ID}`, price: '1' });
   });
 });
 

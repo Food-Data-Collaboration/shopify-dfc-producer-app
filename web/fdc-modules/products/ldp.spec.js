@@ -60,7 +60,8 @@ jest.mock('../../utils/getShopifySession.js', () => ({
 jest.mock('../../database/variants/variants.js', () => ({
   addVariant: jest.fn(),
   deleteVariant: jest.fn(),
-  getVariants: jest.fn(async () => [])
+  getVariants: jest.fn(async () => []),
+  toggleVariantMappingStatus: jest.fn()
 }));
 
 jest.mock('./controllers/shopify/mutations.js', () => ({
@@ -70,6 +71,13 @@ jest.mock('./controllers/shopify/mutations.js', () => ({
   updateProductDetails: jest.fn(),
   updateVariantInShopify: jest.fn()
 }));
+
+jest.mock('../../connector/index.js', () => ({
+  __esModule: true,
+  default: jest.fn()
+}));
+
+const loadConnectorWithResources = require('../../connector/index.js').default;
 
 jest.mock('./controllers/shopify/products.js', () => ({
   findFDCProducts: jest.fn(async () => []),
@@ -205,6 +213,12 @@ const unpublished = () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // The write path must use the shared connector from web/connector/index.js
+  // rather than constructing its own; a real instance is used so
+  // `connector.import` keeps working, and the call count proves reuse.
+  loadConnectorWithResources.mockImplementation(
+    async () => new (require('@siol-data/linkml-connector').Connector)()
+  );
   variants.getVariants.mockResolvedValue([]);
   productsFromShopify.getFdcVariantsFromDB.mockResolvedValue({});
   productsFromShopify.getFdcVariantsByProductIdFromDB.mockResolvedValue({});
@@ -293,6 +307,57 @@ describe('GET SuppliedProducts (container)', () => {
 
     expect(bodyOf(res)['ldp:contains']).toEqual([]);
     expect(res.statusCode).toBe(200);
+  });
+});
+
+describe('POST SuppliedProducts against an existing disabled mapping', () => {
+  // A merchant can stop sharing a variant without deleting the mapping, so
+  // POST must re-enable that row. But the row carries its own product_id, and
+  // the payload names a parent: if they disagree the re-enable would publish
+  // the variant under the *old* product and return a graph built from it,
+  // silently discarding what the hub asked for.
+
+  const disabledMapping = (overrides = {}) => ({
+    id: 7,
+    productId: PRODUCT_ID,
+    retailVariantId: VARIANT_ID,
+    enabled: false,
+    ...overrides
+  });
+
+  it('re-enables the existing row when the parent matches', async () => {
+    variants.getVariants.mockResolvedValue([disabledMapping()]);
+    // Mirror the real toggle so the follow-up lookup sees the published row.
+    variants.toggleVariantMappingStatus.mockImplementation(async () => {
+      variants.getVariants.mockResolvedValue([disabledMapping({ enabled: true })]);
+      return { id: 7, enabled: true };
+    });
+    const res = makeRes();
+
+    await publishSuppliedProduct(
+      makeReq({ method: 'POST', body: dfcDocument(member()) }),
+      res
+    );
+
+    expect(variants.toggleVariantMappingStatus).toHaveBeenCalledWith(7, 'acme');
+    expect(variants.addVariant).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(201);
+  });
+
+  it('refuses to re-enable when the payload names a different parent', async () => {
+    variants.getVariants.mockResolvedValue([disabledMapping({ productId: '1234' })]);
+    const res = makeRes();
+
+    await expect(
+      publishSuppliedProduct(
+        makeReq({ method: 'POST', body: dfcDocument(member()) }),
+        res
+      )
+    ).rejects.toMatchObject({ status: 409 });
+
+    // Nothing published, and the stale row left untouched.
+    expect(variants.toggleVariantMappingStatus).not.toHaveBeenCalled();
+    expect(variants.addVariant).not.toHaveBeenCalled();
   });
 });
 
@@ -430,6 +495,21 @@ describe('POST SuppliedProducts (publish)', () => {
       publishSuppliedProduct(makeReq({ method: 'POST', body: payload() }), res)
     ).rejects.toMatchObject({ status: 404 });
     expect(variants.addVariant).not.toHaveBeenCalled();
+  });
+
+  it('uses the shared connector singleton rather than building its own', async () => {
+    // web/connector/index.js exists to own the connector's lifecycle; a write
+    // path that calls `new Connector()` reloads the bundled taxonomies per
+    // request and forks the lifecycle away from the read path.
+    unpublished();
+
+    const res = makeRes();
+    await publishSuppliedProduct(
+      makeReq({ method: 'POST', body: dfcDocument(member()) }),
+      res
+    );
+
+    expect(loadConnectorWithResources).toHaveBeenCalled();
   });
 
   it('collapses to 204 + Location under Prefer: return=minimal', async () => {
