@@ -4,48 +4,64 @@ import { extractOrderLine, createDfcOrderLineFromShopify } from '../dfc/dfc-orde
 import { persistLineIdMappings } from './lineItemMappings.js';
 import * as orders from './shopify/orders.js';
 import * as ids from './shopify/ids.js';
+import { requireSuppliedProductId } from './shopify/orders.js';
 import { getOrder } from '../../../database/orders/orders.js';
-
-const createOrUpdateOrderLine = async (req, res) => {
-  try {
-    const session = await getSession(`${req.params.EnterpriseName}.myshopify.com`);
-    const client = new shopify.api.clients.Graphql({ session });
-
-    const order = await getOrder(req.params.id, req.user.id, req.params.EnterpriseName);
-
-    if (!order) {
-      return res.status(403).send('You do not have permission to act on this order');
-    }
-
-    const orderLine = await extractOrderLine(req.body);
-
-    const { order: shopifyOrder } = await orders.findOrder(client, req.params.id, {});
-
-    if (!shopifyOrder) {
-      return res.status(404).send('Unable to find order');
-    }
-
-    const updatedLines = await orders.createUpdatedShopifyLines(shopifyOrder, orderLine);
-    const updatedShopifyDraftOrder = await orders.updateOrder(client, req.params.id, null, updatedLines);
-    const lineItemIdMappings = await persistLineIdMappings(updatedShopifyDraftOrder, req.params.EnterpriseName);
-
-    const externalLineId = req.params.lineId || figureOutExternalLineIdForProduct(lineItemIdMappings, await getProductId(orderLine));
-
-    const dfcOrder = await createDfcOrderLineFromShopify(updatedShopifyDraftOrder, externalLineId, lineItemIdMappings, req.params.EnterpriseName, req.params.id);
-    res.type('application/json');
-    res.send(dfcOrder);
-  } catch (error) {
-    console.error(error);
-    res.status(500).end();
-  }
-};
+import { orderForbidden, orderNotFound, sendOrderWrite } from '../ldp.js';
+import { withLdpErrors } from '../../ldp/index.js';
 
 async function getProductId(dfcLine) {
-  return ids.extract(await (await (await dfcLine.getOffer()).getOfferedItem()).getSemanticId());
+  // Offer -> CatalogItem -> SuppliedProduct in v2; see
+  // `requireSuppliedProductId` in shopify/orders.js for why an unresolvable
+  // chain must throw rather than fall back to the line's own id.
+  return ids.extract(requireSuppliedProductId(dfcLine));
 }
 
 function figureOutExternalLineIdForProduct(lineItemIdMappings, productId) {
   return lineItemIdMappings.find(({ variantId }) => variantId === productId).externalId;
 }
 
-export default createOrUpdateOrderLine;
+const createOrUpdateOrderLine = async (req, res) => {
+  const session = await getSession(`${req.params.EnterpriseName}.myshopify.com`);
+  const client = new shopify.api.clients.Graphql({ session });
+
+  const order = await getOrder(req.params.id, req.user.id, req.params.EnterpriseName);
+
+  if (!order) {
+    return orderForbidden(req, res);
+  }
+
+  const orderLine = await extractOrderLine(req.body);
+
+  const { order: shopifyOrder } = await orders.findOrder(client, req.params.id, {});
+
+  if (!shopifyOrder) {
+    return orderNotFound(req, res);
+  }
+
+  const updatedLines = await orders.createUpdatedShopifyLines(shopifyOrder, orderLine);
+  const updatedShopifyDraftOrder = await orders.updateOrder(
+    client,
+    req.params.id,
+    null,
+    updatedLines
+  );
+  const lineItemIdMappings = await persistLineIdMappings(
+    updatedShopifyDraftOrder,
+    req.params.EnterpriseName
+  );
+
+  const externalLineId = req.params.lineId
+    || figureOutExternalLineIdForProduct(lineItemIdMappings, await getProductId(orderLine));
+
+  const dfcOrder = await createDfcOrderLineFromShopify(
+    updatedShopifyDraftOrder,
+    externalLineId,
+    lineItemIdMappings,
+    req.params.EnterpriseName,
+    req.params.id
+  );
+
+  return sendOrderWrite(req, res, dfcOrder);
+};
+
+export default withLdpErrors(createOrUpdateOrderLine);

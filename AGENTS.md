@@ -5,7 +5,8 @@
 - Node >=20.10.0 (`web/package.json` engines). `web/` is ESM (`"type": "module"`), root is CJS.
 - Install with `yarn` only (don't use `npm install`): `yarn install --frozen-lockfile`, then `yarn --cwd web install --frozen-lockfile`, then `yarn --cwd web/frontend install --frozen-lockfile` (same 3-step order as CI). Lockfiles are tracked — `yarn.lock` + `package-lock.json` at root and in `web/`, plus `web/frontend/yarn.lock` — don't delete any.
 - Env: `web/.env` (not root). Loaded by `web/config.js` (handles cwd `web` vs root); yup schema has no `.required()` so missing vars are `undefined`, not errors. `OIDC_TRUSTED_AUDIENCES` allowlists hub token audiences (runbook: `DEPLOYMENT_STRATEGY.md` §2). `shopify.app.*.toml` are per-developer CLI configs.
-- DB local: `local-db/docker-compose.yml` (postgres on 5435 with SSL on + pgAdmin on 5050). Connection strings in `local-db/readme.md`. Build schema: `yarn build:db` (runs `web/database/build.js` — target DB `SHOP_REGISTRY_DATABASE_NAME` must already exist; `DATABASE_HOST_URL` excludes db name).
+- DB local: `./scripts/setup-test-db.sh` from the repo root is the one-shot setup — starts postgres in Docker (`local-db/docker-compose.yml`, port 5435, SSL on, pgAdmin on 5050), creates `fdc_appuser` + the databases, applies all schemas, seeds dev portal + test users, and writes `DATABASE_HOST_URL`/`SHOP_REGISTRY_DATABASE_NAME` into `web/.env`. Idempotent; `--reset` to wipe the volume. No root/sudo needed. Details and caveats in `local-db/readme.md`.
+- `yarn build:db` (`web/database/build.js`) is narrower — registry tables only (`auto-timestamp`, `shop_registry`, `portals`, `shopify_sessions`, dev seed). The 4 DB-dependent jest suites need more than that (they hit the central pool for `line_items`/`orders`/`sales_sessions`/seeded `users`, which live in per-shop DBs in production), so use the script, not `build:db`, to make `npm test` pass. `build:db` also assumes the target DB already exists; `DATABASE_HOST_URL` excludes the db name.
 - Orders work: read `.opencode/dfc-orders.md` (route/middleware flow) and `.opencode/dfc-orders-common-patterns.md` (Shopify↔OFN parity) first.
 
 ## Commands
@@ -18,42 +19,146 @@
 | `npx jest path/to/file.spec.js` | Single test (from root) — for blank-node diffs use `Received:` from the full `npm test` run, not isolation |
 | `npm run acceptance-test` | Targets `acceptance-tests/` (singular script name) — NOT runnable as-is: `order.spec.js` ships with empty `refreshToken`/product IDs/`SHOP_NAME`, needs live server + OIDC |
 | `npm run test:e2e:build` | Builds `web/frontend` (`vite build`), starts server `MOCK_BRIDGE=1`, mock admin on 3080, runs Playwright |
-| `npm run build:db` | `node ./web/database/build.js` |
-| ESLint/Prettier | Configured in `web/.eslintrc.cjs` (airbnb base). No separate typecheck. |
+| `npm run build:db` | `node ./web/database/build.js` — registry tables only; see Setup for why the test DB needs the script instead |
+| `./scripts/setup-test-db.sh` | One-shot local test DB (Docker postgres on 5435 + all schemas + seeds + `web/.env`); `--reset` to wipe the volume |
+| `npx jest web/middleware/rateLimit.test.js` | Rate limiter unit tests; `limiter.reset()` clears bucket state between tests |
+| ESLint/Prettier | Configured in `web/.eslintrc.cjs` (airbnb base). No separate typecheck. CI does not lint, and the eslint-import resolver cannot resolve the JSR connector alias (`import/no-unresolved` on `@siol-data/linkml-connector` is expected noise). |
 
 ## Architecture
 
 - Entrypoint `web/app.js` (Express). Routes:
-  - `/api/dfc/Enterprises/:EnterpriseName/{Orders,SuppliedProducts,Portals}` — DFC API. Body parsing differs per route: Orders + enterprise detail use `express.text({type:'*/json'})`, SuppliedProducts uses `express.json()`, Portals uses `express.json({type:['application/json','application/ld+json']})`
+  - `/api/dfc/Enterprises/:EnterpriseName/{Orders,SuppliedProducts,Portals}` — DFC API. Body parsing differs per route: Orders + enterprise detail use `express.text({type:'*/json'})`, SuppliedProducts uses `express.json({type:['application/json','application/ld+json','text/json']})` so hubs can POST JSON-LD, Portals uses `express.json({type:['application/json','application/ld+json']})`
   - `/api/{products,hub-users,shop}` — Shopify-session APIs (`shopify.validateAuthenticatedSession()` + `checkOnlineSession`)
   - `/fdc` — legacy (`web/legacy-fdc-modules/`)
   - `/api/scopes` — unauthenticated
+  - `/profile` — unauthenticated WebID self-description (`web/fdc-modules/profile.js`)
 - DFC middleware varies by route: enterprise detail and SuppliedProducts use `populateShop` → `checkUserAccessPermissions` → `checkScopePermissions`; Orders also adds `checkOrdersFeature`; the enterprise collection omits shop/scope checks, and Portals currently uses only `populateShop`.
 - Modules: `web/fdc-modules/{orders,enterprises,products,portals}` (controllers + `dfc/` transforms), `web/api-modules/{products,users,shop}`, `web/legacy-fdc-modules/`.
+
+## LDP surface
+
+The DFC API is a Linked Data Platform dataserver, modelled on the DjangoLDP
+reference at `../FDC-DjangoLDP-Central-Directory` (real behaviour lives in
+`../sib/djangoldp-data-food-consortium`). Pure dataserver: no inbound
+federation, no proxy-import, no CSV import, no persons container.
+
+- `web/fdc-modules/ldp/index.js` — shared helpers every DFC route uses:
+  `ldp:Container`/`ldp:contains` envelopes, `Link`/`Accept-Post`/`Accept-Patch`
+  headers, ETag, RFC 7232 `If-Match`/`If-None-Match`, RFC 7240
+  `Prefer: return=minimal`, RFC 7807 problems, `OPTIONS`, `parseLdpBody`
+  (Orders/Enterprises bodies arrive as raw strings from `express.text`).
+  Use these rather than hand-rolling JSON-LD in a controller.
+- `web/fdc-modules/scopes/matrix.js` — the **only** place the route × method ×
+  scope table lives, plus a documented matrix in its header comment. Member
+  paths inherit their container's row. `checkScopePermissions` imports
+  `getRequiredScope` from here; it rejoins `baseUrl + path` first, because on an
+  `app.use` mount express strips the mount and `req.route` is undefined.
+- Readable: `/api/dfc/Enterprises` (container) and its members. **Enterprises are
+  read-only** — an enterprise *is* a Shopify shop, so writing one is an
+  app install/uninstall; the other verbs answer 405 with `Allow`.
+- Writable: `SuppliedProducts` — POST publishes an existing Shopify variant
+  (creates the `fdc_variants` row), PUT/PATCH update the mapped variant,
+  DELETE **unpublishes** (drops the mapping, never the Shopify product). Gated by
+  `WriteProducts`. v1 payloads are rejected with 415, not coerced.
+- Orders keep the existing custom CRUD; LDP framing only (`web/fdc-modules/orders/ldp.js`).
+  DjangoLDP has no Order model, so there is nothing to mirror structurally.
+  `POST /Orders` stays **200** (live hubs assert it) and gains a `Location` header.
+- Member URIs are minted from the Shopify **variant** id
+  (`…/SuppliedProducts/{variantId}`) and are stable for the variant's life,
+  because `fdc_variants.retail_variant_id` is the anchor. Beware: the *route*
+  param `ProductId` is a Shopify **product** id — pre-existing mismatch.
+- The `dfc_overflow` JSONB column from the original plan is **not needed**:
+  the writable field surface is deliberately narrow, so there is nothing to
+  overflow. If the surface is widened later, revisit.
+- Shopify GraphQL writes live in `web/fdc-modules/products/controllers/shopify/mutations.js`;
+  `Shopify userErrors` are translated to 422, not 500.
+- **Rate limiting** (`web/middleware/rateLimit.js`, mounted in `app.js` on every
+  authorizing DFC route). Dependency-free fixed-window, in-memory, keyed by
+  OIDC `client_id` → else token `sub` (unverified; bucket key only, never
+  authorization) → else IP. Defaults 120 req / 60s, overridden by
+  `DFC_RATE_LIMIT_MAX` / `DFC_RATE_LIMIT_WINDOW_MS`. Per-process state: correct
+  for a single instance, each replica enforces its own budget when scaled —
+  swap the store for Redis if that matters. Not related to PR #94, which
+  retries *outbound* Shopify calls on rate limit.
+- **Security decisions worth knowing before editing `sendLdp`:** the ETag is
+  SHA-256 (not a security boundary, just not a deprecated digest); `Location`
+  is only emitted when it is a same-origin absolute URI, so a route param can
+  never turn a 201 into an open redirect; `X-Content-Type-Options: nosniff` is
+  set because Express defaults a string body to `text/html`; and
+  `containerUri` strips `.`/`..` from route-param segments.
+- **Writable DFC predicates on a SuppliedProduct member** — deliberately
+  narrow, because Shopify decides what is possible, not us:
+  | DFC predicate | Lands on | Notes |
+  |---|---|---|
+  | `dfc-b:value` + `dfc-b:hasUnit` | variant `price` | a unit that is not the shop currency is **rejected (422)**, never converted |
+  | `dfc-b:sku` (on the CatalogItem) | variant `inventoryItem.sku` | |
+  | `dfc-b:name` | parent product `title` | a *variant* title is derived from its option values and is not writable |
+  | `dfc-b:description` | product `descriptionHtml` | cleared by PUT, left alone by PATCH |
+  | `dfc-b:Image` | — | **rejected (422)**; Shopify attaches variant media via a separate mutation argument and cannot replace existing variant images |
+  Everything else is read-only. `ProductVariantsBulkInput` has no `title` or
+  `imageSrc` — sending either makes GraphQL reject the whole mutation before
+  it writes anything. `PRODUCT_VARIANT_BULK_INPUT_FIELDS` in
+  `mutations.js` is the authoritative list and `mutations.spec.js` asserts the
+  builder against it, precisely because a mocked `client.request` cannot catch
+  an invalid mutation shape.
+- **DFC v2 traversal is `OrderLine -> Offer -> CatalogItem -> SuppliedProduct`**
+  (`dfc_business_linkml_v2_0.yaml`: `Offer.offers -> CatalogItem`,
+  `CatalogItem.references -> DefinedProduct`). Reading `offers[0]` as the
+  product sends the literal string `CatalogItem` as a Shopify variant id.
+  Use `suppliedProductIdFor()` in `orders/controllers/shopify/orders.js`.
+  Note v2 has **no `referencedBy` on SuppliedProduct** (that slot only exists on
+  `DFC_DitributedRepresentation`), so the CatalogItem is reachable from the
+  Offer side, not via a back-link from the product.
+- **The member `@id` is a Shopify *variant* id**; `fdc_variants.retail_variant_id`
+  is the anchor, so it is stable for the variant's life. GET resolves it
+  through `findPublishedMapping` first, because querying `product_id` directly
+  404s whenever the two differ. A *product* id also still works (legacy route
+  shape) and returns the whole product group.
+- **LDP `OPTIONS` routes are mounted in `app.js`, not in the routers.** Two
+  reasons: `cors()` answers OPTIONS itself unless `preflightContinue: true`,
+  and `populateShop` answers 404 for an unknown shop — which a hub cannot
+  supply when it is only asking what it may do. `corsPreflight()` exists for
+  the first. `ldp/discovery.spec.js` loads the real app and asserts all six
+  endpoints; that wiring is invisible to handler-level unit tests.
+- **Blank-node ids must be derived from the resource, never a module counter.**
+  A counter advances on every serialisation, so two GETs of unchanged data
+  differ and no conditional request can ever return 304. Order Prices use
+  `priceIdFor(orderId, lineId)`; product blank nodes are already scoped to
+  their variant URI.
 - DB multi-tenant: central `shop_registry` → per-shop pools via `web/database/connect.js:getShopDbConnection(shopId)`, SSL `rejectUnauthorized:false`. Schema per module (`web/database/{shop_registry,orders,portals,users,...}/schema.sql`); `migrations.sql` + `auto-timestamp.sql`.
-- Connector singleton `web/connector/index.js` — lazy, cached. Loads 4 JSON thesauri (`facets/measures/productTypes/vocabulary`) via `import ... with {type:'json'}`. Sets `exporter.outputContext` to `DFC_CONTEXT_W3ID`; `dfcContext.js:normalizeContext()` swaps wordpress `context_1.16.0.jsonld` ↔ `w3id.org` on import.
+- Connector singleton `web/connector/index.js` — lazy, cached `new Connector()` (bundled v2 taxonomies, no init files).
 - Frontend `web/frontend/` — Vite + React + Polaris, `vite build` → `web/frontend/dist`, served by Express static. `dev_embed.js` for Shopify.
 - Docker `Dockerfile` copies only `web/`, deletes `yarn.lock` (`RUN rm yarn.lock`) then `yarn` + frontend build. CI `build-and-deploy.yml` (reusable, pushes `ghcr.io`), `deploy-staging.yml` (staging branch), `deploy-main.yml` (main). CI runs Playwright only (`frontend-test` gates Docker build); jest is not in CI.
 
-## Connector `@datafoodconsortium/connector` (1.0.0-beta.2, pinned exact)
+## Connector `@siol-data/linkml-connector` (v2.0.5, JSR)
 
-- Installed at root and `web/` as `1.0.0-beta.2`. Import `@datafoodconsortium/connector` (not `linkml-connector` — that's `linkml-connector` branch with `v2.0.0` breaking API).
-- Creation: `new Order({connector, semanticId, ...})` / `connector.createQuantity({value, hasUnit})` / `connector.createOffer({semanticId, offeredItem})`.
-- Access via getters: `getSemanticId()`, `getOrderStatus()`, `getQuantity()`, `line.getOffer().getOfferedItem()`.
-- Vocab: `connector.VOCABULARY.STATES.ORDERSTATE.*`, `connector.MEASURES.UNIT.CURRENCYUNIT.*` (wrap via `web/utils/currencyMeasureFor.js`).
-- `connector.export(array)` → JSON-LD string, `connector.import(string)` async → array (filter `instanceof Order/OrderLine/SaleSession`).
-- Beta.2 quirks: blank nodes `_:bN` (old staging `beta.2` republish used `_:_:bN`); `orderStatus`/`fulfilmentStatus` may be plain string vs `{"@id":...}` — see `normalizeContext`; `HOST` must be explicit in semanticIds (`config.HOST`).
+- Published on JSR as `@siol-data/linkml-connector` (source: `Food-Data-Collaboration/DFC-LinkML`, `typescript-connector/`). Import `@siol-data/linkml-connector`.
+- Installed via JSR's npm-compat mirror: `"@siol-data/linkml-connector": "npm:@jsr/siol-data__linkml-connector@2.0.5"` in root + `web/package.json`. The `@jsr` scope only exists on `https://npm.jsr.io`, so `.yarnrc` (yarn 1) and `.npmrc` (npm) both pin `@jsr:registry`. **Keep all four registry files committed** — `Dockerfile` copies only `web/`, so `web/.yarnrc` + `web/.npmrc` are what the image build reads.
+- JSR packages are ESM-only, so the package must be imported from ESM. `web/` is `"type": "module"` ✓; root is CJS and only declares the dep so `jest.config.js`'s `require.resolve` mapper works.
+- Needs Node ≥20 (shell may default to 18 — use nodenv 24 for `web/` installs). The shim exposes `src/*.js` (not `dist/`), and `require.resolve` returns that path.
+- Singleton `web/connector/index.js` is just `new Connector()` — v2.0.0 taxonomies bundle in the constructor. No thesaurus loading (deleted `web/connector/thesaurus/`, `dfcContext.js`).
+- Creation: `connector.createX(semanticId, params)` or `createX({semanticId, ...})` / `new X(semanticId, params)`. Blank-node ids by hand (`_:bN`, `_:qty_N` counters).
+- Field access, not getters: `o.semanticId`, `o.hasOrderStatus`, `o.quantity`, `line.concerns`, `offer.offers` (string ids or resolved objects — handle both).
+- Vocab as compact URIs (no `MEASURES`/`VOCABULARY`): `dfc-v:Held/Complete/Fulfilled/Unfulfilled/Combine`, `dfc-m:Kilogram/Piece/Euro/PoundSterling/USDollar` (`web/utils/currencyMeasureFor.js` maps codes).
+- `connector.export(...)` spread → JSON string (async); `connector.import(string|object)` sync → array. No context juggling — `@context` always the v2 URL string.
+- Known gaps: `SuppliedProduct` has `hasVariant` but no `isVariantOf` (registered manually via `registerSemanticProperty`); product types come from bundled v2 taxonomy (`dfc-pt:` notations) via `web/utils/productTypes.js` — v1 ids stored in DB may not resolve. (Fixed upstream: v2 `Price` now extends `QuantitativeValue`, so amount/currency flow through `value`/`hasUnit`.)
+- **Do NOT gate on `connector.validate()`** (added in 2.0.5). Its `REQUIRED_SLOTS` map demands *every* listed slot per type, not "at least one", so it flags ~10 issues on a perfectly normal graph — `Order` alone wants `belongsTo`/`orderedBy`/`selects`/`uses`, `Offer` wants `offers` *and* `offersTo`. Treat it as advisory at most; it would reject essentially everything this app emits. Verified against the real export shapes before ruling it out.
+- Version bumps so far verified wire-identical: 2.0.1 → 2.0.5 changes only JSDoc, `validate()`, and the PHP connector (the "sparse-singleton export" fix is PHP-only; `JsonLdSerializer.ts` is byte-identical and the bundled taxonomies are unchanged — still 510 ProductType concepts). Re-run that comparison before trusting a future bump; the models we use (`SuppliedProduct`, `Offer`, `Price`, `Order`, `OrderLine`, `SaleSession`, `Person`, `Enterprise`, `Address`, `PhoneNumber`, `CatalogItem`, `QuantitativeValue`) have identical property names, but a rename there would be a breaking change to the DFC graph, not just to this code.
 
 ## Tests
 
 - Jest `jest.config.js` (`ts-jest` + `babel-jest`, `transformIgnorePatterns:[]`, `testPathIgnorePatterns:['/node_modules/','acceptance-tests','e2e']`, `moduleNameMapper` resolves connector). `test-setup.js` closes `pool` after all.
-- Mix `.spec.js`/`.test.js`. DB-dependent tests (`web/database/*`, `lineItemMappings.spec.js`) fail without Postgres.
+- Mix `.spec.js`/`.test.js`. DB-dependent tests (`web/database/{line_items,orders,sales_sessions}`, `lineItemMappings.spec.js`) need Postgres — run `./scripts/setup-test-db.sh` first, or they fail with `getaddrinfo EAI_AGAIN` (a missing `DATABASE_HOST_URL`, not a DNS problem). Full green suite is 212 tests / 19 suites.
+- `lineItemMappings.spec.js` fixtures use a flat `lineItems: [...]` array, not `{ edges: [...] }` — the callers in `orders.js` flatten `lineItems.nodes` first.
+- LDP suites: `web/fdc-modules/{ldp,scopes,profile,products,orders}/*.spec.js` — all DB-free. `products/ldp.spec.js` mocks `shopify.js`, `getShopifySession.js` and the variants table, so it needs neither. In specs, read member URIs from `config.HOST` (`web/.env` sets it to `http://localhost:3629/`), and mock the Shopify client with a class *inside* the `jest.mock` factory since jest hoists the call.
+- `web/jest-ldp-env.js` is a jest `setupFiles` entry that forces `NODE_ENV=development` and sets the Shopify keys + `MOCK_BRIDGE`. Needed by `ldp/discovery.spec.js`, which imports the real `web/app.js`: jest sets `NODE_ENV=test` and `web/shopify.js` only passes `apiSecretKey` when `NODE_ENV` is exactly `development`. It cannot be done inside the spec — babel-jest hoists requires above top-level statements.
+- **Reviews arrive on two channels.** CodeQL posts inline comments, but Copilot files everything as a *single review body* (`gh pr view <n> --json reviews`), which the inline-comments endpoint does not return. Check both before assuming a review is fully addressed.
 - E2E: Playwright `playwright.config.js` (workers 1, `baseURL http://localhost:3080`, `global-setup/teardown`, `webServer` spawns `node index.js` in `web/` with `MOCK_BRIDGE=1`, `SHOPIFY_API_KEY=test-mock-key`). Needs `yarn --cwd web/frontend build` first unless using `test:e2e:build`.
 
 ## Gotchas
 
-- Blank node IDs are global counter — `b1` in isolation becomes `b17` in full suite. Always copy `Received:` from the failing `npm test` run, don't generate in a standalone script.
+- Blank node IDs in the **test fixtures** are a global counter — `b1` in isolation becomes `b17` in the full suite. Always copy `Received:` from the failing `npm test` run, don't generate in a standalone script. (Production code no longer uses a shared counter: see the blank-node note in the LDP section above.)
 - `HOST` trailing slash matters for products/orders (`${config.HOST}api/dfc/...` in `productUtils.js`, `dfc-order.js`); portals/scopes strip it via `.replace(/\/+$/,'')`. Ensure `.env` HOST ends with `/`.
 - `web/database/build.js` requires existing `SHOP_REGISTRY_DATABASE_NAME` DB; `DATABASE_HOST_URL` without db name.
 - Frontend changes need rebuild before `npm run test:e2e` (without `:build`).
-- `linkml-connector` branch API differs (field access, spread export, compact URIs) — don't apply main-branch connector patterns there.
+- Stale `linkml-connector` branch holds a v2.0.0 migration against May-2026 code (91 commits behind) — reference only, don't cherry-pick blindly.
