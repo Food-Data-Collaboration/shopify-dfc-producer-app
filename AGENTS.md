@@ -63,6 +63,15 @@ federation, no proxy-import, no CSV import, no persons container.
 - Orders keep the existing custom CRUD; LDP framing only (`web/fdc-modules/orders/ldp.js`).
   DjangoLDP has no Order model, so there is nothing to mirror structurally.
   `POST /Orders` stays **200** (live hubs assert it) and gains a `Location` header.
+  **Orders are not full CRUD**: the router registers `POST` on `/Orders` and
+  `GET`/`PUT` on order and order-line members, and nothing else. So there is no
+  PATCH or DELETE row for Orders in `scopes/matrix.js`, and their `OPTIONS`
+  handlers pass an explicit `methods:` list to `ldpOptions` — the default
+  writable-member list (`PUT, PATCH, DELETE`) would advertise verbs that can
+  only 404. SuppliedProducts *does* implement all four and still uses the
+  default. `/Orders/:id/orderLines` is an `ldp:Container` (it accepts POST),
+  so its GET uses container framing via `sendOrderLinesContainer`, not
+  `sendOrderMember`.
 - Member URIs are minted from the Shopify **variant** id
   (`…/SuppliedProducts/{variantId}`) and are stable for the variant's life,
   because `fdc_variants.retail_variant_id` is the anchor. Beware: the *route*
@@ -74,11 +83,16 @@ federation, no proxy-import, no CSV import, no persons container.
   `Shopify userErrors` are translated to 422, not 500.
 - **Rate limiting** (`web/middleware/rateLimit.js`, mounted in `app.js` on every
   authorizing DFC route). Dependency-free fixed-window, in-memory, keyed by
-  OIDC `client_id` → else token `sub` (unverified; bucket key only, never
-  authorization) → else IP. Defaults 120 req / 60s, overridden by
-  `DFC_RATE_LIMIT_MAX` / `DFC_RATE_LIMIT_WINDOW_MS`. Per-process state: correct
-  for a single instance, each replica enforces its own budget when scaled —
-  swap the store for Redis if that matters. Not related to PR #94, which
+  OIDC `client_id` when the token has been introspected, **else the remote
+  address**. There is deliberately no middle option keyed on a claim read from
+  the bearer token: the limiter runs *before* `checkUserAccessPermissions`, so
+  on that path the token is unverified and a fresh `sub` per request would mint
+  a fresh bucket per request. The `client_id` branch is therefore dead code on
+  the routes as mounted — it only engages if introspection runs first.
+  Defaults 120 req / 60s, overridden by `DFC_RATE_LIMIT_MAX` /
+  `DFC_RATE_LIMIT_WINDOW_MS`. Per-process state: correct for a single
+  instance, each replica enforces its own budget when scaled — swap the store
+  for Redis if that matters. Not related to PR #94, which
   retries *outbound* Shopify calls on rate limit.
 - **Security decisions worth knowing before editing `sendLdp`:** the ETag is
   SHA-256 (not a security boundary, just not a deprecated digest); `Location`
@@ -90,7 +104,7 @@ federation, no proxy-import, no CSV import, no persons container.
   narrow, because Shopify decides what is possible, not us:
   | DFC predicate | Lands on | Notes |
   |---|---|---|
-  | `dfc-b:value` + `dfc-b:hasUnit` | variant `price` | a unit that is not the shop currency is **rejected (422)**, never converted |
+  | `dfc-b:value` + `dfc-b:hasUnit` | variant `price` | a unit that is not the shop currency is **rejected (422)**, never converted; a *value with no recognised currency unit at all* is also 422, because the bare number would otherwise be written as shop currency |
   | `dfc-b:sku` (on the CatalogItem) | variant `inventoryItem.sku` | |
   | `dfc-b:name` | parent product `title` | a *variant* title is derived from its option values and is not writable |
   | `dfc-b:description` | product `descriptionHtml` | cleared by PUT, left alone by PATCH |

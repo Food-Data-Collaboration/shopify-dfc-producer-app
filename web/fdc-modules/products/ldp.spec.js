@@ -593,6 +593,53 @@ describe('PUT / PATCH SuppliedProducts/{id}', () => {
     expect(mutations.updateVariantInShopify).not.toHaveBeenCalled();
   });
 
+  it('rejects a price whose unit is not a currency we recognise', async () => {
+    // A mass-based price ("500 Kilogram") has no currency, so it cannot be
+    // compared against the shop currency and must not be written as if it
+    // were one.
+    withMapping();
+    mutations.findShopCurrency.mockResolvedValue('GBP');
+    const res = makeRes();
+
+    await expect(
+      patchSuppliedProduct(makeReq({ method: 'PATCH', body: withPrice('0.5', 'dfc-m:Kilogram') }), res)
+    ).rejects.toMatchObject({ status: 422 });
+    expect(mutations.updateVariantInShopify).not.toHaveBeenCalled();
+  });
+
+  it('rejects a price with a value but no unit at all', async () => {
+    // Absence of `dfc-b:hasUnit` must not be read as "shop currency".
+    withMapping();
+    const res = makeRes();
+    const body = dfcDocument([
+      { '@id': memberUri(VARIANT_ID), '@type': 'dfc-b:SuppliedProduct' },
+      { '@id': '_:p1', '@type': 'dfc-b:Price', 'dfc-b:value': '2.49' }
+    ]);
+
+    await expect(
+      patchSuppliedProduct(makeReq({ method: 'PATCH', body }), res)
+    ).rejects.toMatchObject({ status: 422 });
+    expect(mutations.updateVariantInShopify).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a valueless Price as a price to write', async () => {
+    // No `dfc-b:value` means there is nothing to write, so a mass unit on such
+    // a node is inert rather than an error — the name still goes to the
+    // product, but the variant is never touched.
+    withMapping();
+    const res = makeRes();
+    const body = dfcDocument([
+      memberGraph()[0],
+      { '@id': '_:p1', '@type': 'dfc-b:Price', 'dfc-b:hasUnit': 'dfc-m:Kilogram' }
+    ]);
+
+    await patchSuppliedProduct(makeReq({ method: 'PATCH', body }), res);
+
+    expect(mutations.updateVariantInShopify).not.toHaveBeenCalled();
+    expect(mutations.updateProductDetails)
+      .toHaveBeenCalledWith(expect.anything(), PRODUCT_ID, { title: 'Apples' });
+  });
+
   it.each(['dfc-m:PoundSterling', 'dfc-m:Euro', 'dfc-m:USDollar'])(
     'accepts the price currency %s when it matches the shop currency',
     async (unit) => {

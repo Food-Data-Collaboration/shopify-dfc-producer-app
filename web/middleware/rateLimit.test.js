@@ -32,7 +32,7 @@ const makeReq = ({ tokenSet, authorization, ip = '10.0.0.1' } = {}) => ({
   get: (name) => (name.toLowerCase() === 'authorization' ? authorization : undefined)
 });
 
-/** A minimal unsigned JWT carrying `sub`. Only the payload is ever read. */
+/** A minimal unsigned JWT carrying `sub`. Nothing in the limiter reads it. */
 const jwtWithSub = (sub) => {
   const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
   return `${b64({ alg: 'none' })}.${b64({ sub })}.signature`;
@@ -94,22 +94,44 @@ describe('rateLimit', () => {
     expect(bPassed).toBe(true);
   });
 
-  it('spreads one user across buckets by token subject', () => {
-    // Two different tokens, same IP, should not exhaust each other's budget.
-    const tokenOne = jwtWithSub('user-1');
-    const tokenTwo = jwtWithSub('user-2');
-
+  it('does not give a forged `sub` a fresh bucket', () => {
+    // The limiter runs *before* introspection, so `sub` read out of an
+    // unverified token payload is entirely attacker-controlled. Keying on it
+    // would let anyone mint unlimited buckets with an unsigned token, defeating
+    // the limit entirely. Everything pre-introspection must share the IP bucket.
     for (let i = 0; i < 3; i += 1) {
-      limiter(makeReq({ authorization: `Bearer ${tokenOne}`, ip: '10.0.0.9' }), makeRes(), () => {});
+      limiter(
+        makeReq({ authorization: `Bearer ${jwtWithSub('user-1')}`, ip: '10.0.0.9' }),
+        makeRes(),
+        () => {}
+      );
     }
 
     let passed = false;
     limiter(
-      makeReq({ authorization: `Bearer ${tokenTwo}`, ip: '10.0.0.9' }),
+      // Same IP, different forged subject — must NOT get a clean budget.
+      makeReq({ authorization: `Bearer ${jwtWithSub('user-2')}`, ip: '10.0.0.9' }),
       makeRes(),
       () => { passed = true; }
     );
-    expect(passed).toBe(true);
+    expect(passed).toBe(false);
+  });
+
+  it('cannot be walked around by sending a new forged subject each time', () => {
+    // The practical attack: one caller, a distinct `sub` per request. Over the
+    // limit's worth of attempts, only `max` may succeed.
+    let allowed = 0;
+    const countAllowed = () => { allowed += 1; };
+
+    for (let i = 0; i < 20; i += 1) {
+      limiter(
+        makeReq({ authorization: `Bearer ${jwtWithSub(`attacker-${i}`)}`, ip: '10.0.0.9' }),
+        makeRes(),
+        countAllowed
+      );
+    }
+
+    expect(allowed).toBe(3);
   });
 
   it('falls back to the IP for an opaque token with no readable subject', () => {
@@ -135,16 +157,38 @@ describe('rateLimit', () => {
     }).not.toThrow();
   });
 
-  it('honours the legacy "JWT " scheme the DFC hubs already send', () => {
-    const token = jwtWithSub('user-3');
-
+  it('shares the IP bucket for the legacy "JWT " scheme', () => {
+    // The hubs send `JWT ` rather than `Bearer `. Both are opaque to us before
+    // introspection, so both key on the address.
     for (let i = 0; i < 3; i += 1) {
-      limiter(makeReq({ authorization: `JWT ${token}` }), makeRes(), () => {});
+      limiter(makeReq({ authorization: `JWT ${jwtWithSub('user-3')}`, ip: '10.0.0.11' }), makeRes(), () => {});
     }
 
     let passed = false;
-    limiter(makeReq({ authorization: `JWT ${token}` }), makeRes(), () => { passed = true; });
+    limiter(
+      makeReq({ authorization: `JWT ${jwtWithSub('user-3')}`, ip: '10.0.0.11' }),
+      makeRes(),
+      () => { passed = true; }
+    );
     expect(passed).toBe(false);
+  });
+
+  it('still separates clients once introspection has supplied a client_id', () => {
+    // The verified key, and the only one an attacker cannot choose.
+    const a = () => makeReq({ tokenSet: { client_id: 'hub-a' }, ip: '10.0.0.20' });
+    const b = () => makeReq({ tokenSet: { client_id: 'hub-b' }, ip: '10.0.0.20' });
+
+    for (let i = 0; i < 3; i += 1) {
+      limiter(a(), makeRes(), () => {});
+    }
+
+    let aBlocked = false;
+    limiter(a(), makeRes(), () => { aBlocked = true; });
+    expect(aBlocked).toBe(false);
+
+    let bPassed = false;
+    limiter(b(), makeRes(), () => { bPassed = true; });
+    expect(bPassed).toBe(true);
   });
 
   it('lets a caller override the limited response', () => {
@@ -167,7 +211,9 @@ describe('rateLimit', () => {
     let passed = true;
     for (let i = 0; i < 200; i += 1) {
       defaultLimiter(makeReq(), res, () => {});
-      if (res.statusCode === 429) passed = false;
+      if (res.statusCode === 429) {
+        passed = false;
+      }
     }
     expect(passed).toBe(false);
     expect(res.statusCode).toBe(429);

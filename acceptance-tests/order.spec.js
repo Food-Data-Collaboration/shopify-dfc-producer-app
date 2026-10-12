@@ -221,8 +221,17 @@ describe('orders', () => {
 
         const concerns = Array.isArray(line.concerns) ? line.concerns : [line.concerns];
         const offer = concerns[0];
-        const products = Array.isArray(offer.offers) ? offer.offers : [offer.offers];
-        const product = products[0];
+
+        // `offers[0]` is a CatalogItem in v2, not the product. Reading it
+        // directly yields the literal "CatalogItem" as the variant id. Follow
+        // the CatalogItem's `references` instead — the same walk
+        // `suppliedProductIdFor` performs server-side.
+        const catalogItems = Array.isArray(offer.offers) ? offer.offers : [offer.offers];
+        const catalogItem = catalogItems[0];
+        const references = Array.isArray(catalogItem.references)
+            ? catalogItem.references
+            : [catalogItem.references];
+        const product = references[0];
 
         expect(line.quantity).toBe(quantity);
         expect(ids.extract(typeof product === 'string' ? product : product.semanticId)).toBe(productId);
@@ -261,9 +270,20 @@ describe('orders', () => {
                 `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/SuppliedProducts/${line.productId}`
             );
 
+            // DFC v2 traversal is OrderLine -> Offer -> CatalogItem ->
+            // SuppliedProduct. `Offer.offers` is a CatalogItem, and the
+            // CatalogItem's `dfc-b:references` is what points at the product.
+            // Sending the product on `offers` directly still resolves (the
+            // dataserver accepts the pre-v2 shape) but it no longer exercises
+            // the shape production actually emits, so build the v2 one here.
+            const catalogItem = connector.createCatalogItem(
+                `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/SuppliedProducts/${line.productId}/CatalogItem`,
+                { references: [suppliedProduct.semanticId] }
+            );
+
             const offer = connector.createOffer(
                 `${PRODUCER_SHOP_URL}api/dfc/Enterprises/${SHOP_NAME}/Offers/${i + 1}`,
-                { offers: suppliedProduct.semanticId }
+                { offers: catalogItem.semanticId }
             );
 
             const orderLine = connector.createOrderLine(
@@ -274,7 +294,7 @@ describe('orders', () => {
                 }
             );
 
-            return [offer, orderLine, suppliedProduct]
+            return [offer, catalogItem, orderLine, suppliedProduct]
         }
     }
 

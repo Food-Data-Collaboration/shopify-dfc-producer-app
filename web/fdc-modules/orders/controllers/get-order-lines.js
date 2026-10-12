@@ -4,7 +4,7 @@ import { createDfcOrderLinesFromShopify } from '../dfc/dfc-order.js';
 import { findOrder } from './shopify/orders.js';
 import { getLineItems } from '../../../database/line_items/lineItems.js';
 import { getOrder } from '../../../database/orders/orders.js';
-import { orderForbidden, orderNotFound, sendOrderMember } from '../ldp.js';
+import { orderForbidden, orderNotFound, sendOrderLinesContainer } from '../ldp.js';
 import { sendProblem, withLdpErrors } from '../../ldp/index.js';
 
 const getOrderLines = async (req, res) => {
@@ -21,10 +21,16 @@ const getOrderLines = async (req, res) => {
     before, after, first, last
   } = req.query;
 
-  if ((before && after) || (before && first) || (after && last) && (before && !last) && (after && !first)) {
+  // Forward and backward paging cannot be combined. The original expression had
+  // a third clause requiring both `last` and `!last`, so it could never be
+  // true; it is dropped rather than carried forward as dead code.
+  const pagingBothWays = Boolean(before && after) || Boolean(before && first);
+
+  if (pagingBothWays) {
     return sendProblem(req, res, 400, {
       title: 'Bad request',
-      detail: 'Incorrect combination of paging parameters. You cannot page forward and backwards simultaneously'
+      detail: 'Incorrect combination of paging parameters. You cannot page forward '
+        + 'and backwards simultaneously'
     });
   }
 
@@ -43,9 +49,10 @@ const getOrderLines = async (req, res) => {
     req.params.id
   );
 
-  res.set('pageInfo', JSON.stringify(pageInfo));
-
-  return sendOrderMember(req, res, dfcOrder);
+  // Container framing: this is a collection of order lines and it accepts POST,
+  // so it advertises ldp:Container + Accept-Post rather than the resource
+  // framing (and first-line `Location`) that sendOrderMember would produce.
+  return sendOrderLinesContainer(req, res, dfcOrder, { pageInfo });
 };
 
 export default withLdpErrors(getOrderLines);

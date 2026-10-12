@@ -96,6 +96,23 @@ describe('LDP discovery', () => {
     expect(acceptPost).toBeNull();
   });
 
+  it('does not advertise PATCH or DELETE on an order member', async () => {
+    // The order router implements GET/PUT only. Telling a client it may PATCH
+    // or DELETE sends it into a 404 it had no way to anticipate, and the scope
+    // matrix no longer grants those verbs either — so OPTIONS has to agree.
+    const { status, allow } = await discover(`${BASE}/Orders/9`);
+
+    expect(status).toBe(200);
+    expect(allow).toBe('GET, PUT, HEAD, OPTIONS');
+  });
+
+  it('does not advertise PATCH or DELETE on an order-line member', async () => {
+    const { status, allow } = await discover(`${BASE}/Orders/9/orderLines/3`);
+
+    expect(status).toBe(200);
+    expect(allow).toBe('GET, PUT, HEAD, OPTIONS');
+  });
+
   it('discovers the Orders container and its members without a database hit', async () => {
     // "acme" is not a registered shop, so anything reaching populateShop would
     // 404 here.
@@ -105,7 +122,7 @@ describe('LDP discovery', () => {
 
     const member = await discover(`${BASE}/Orders/9`);
     expect(member.status).toBe(200);
-    expect(member.allow).toBe('GET, PUT, PATCH, DELETE, HEAD, OPTIONS');
+    expect(member.allow).toBe('GET, PUT, HEAD, OPTIONS');
 
     const lines = await discover(`${BASE}/Orders/9/orderLines`);
     expect(lines.status).toBe(200);

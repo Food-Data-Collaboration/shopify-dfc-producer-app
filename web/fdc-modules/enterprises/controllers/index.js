@@ -16,6 +16,10 @@ import {
   sendLdp,
   sendProblem
 } from '../../ldp/index.js';
+// The same minting function the SuppliedProducts router and `productUtils`
+// use, so `enterprise.supplies` cannot drift from the URIs that actually
+// dereference.
+import { suppliedProductMemberUri } from '../../products/ldp.js';
 
 /**
  * Member URIs are absolute (`config.HOST`-rooted) so they dereference from any
@@ -77,10 +81,16 @@ const buildSingleEnterprise = async (enterpriseName, storeFrontAccessToken) => {
 
   const variants = await getVariants(enterpriseName);
 
+  // Member URIs must be the same ones `productUtils` mints and the
+  // SuppliedProducts router dereferences, or a hub following `supplies` gets a
+  // 404. That means the real enterprise name and the Shopify
+  // `retail_variant_id` — not the `fdc_variants` SERIAL primary key, which is
+  // what `variant.id` is. Both mistakes were live here at once: the route
+  // parameter was left as a literal `:EnterpriseName`.
   const suppliedProducts = variants
     .filter((variant) => variant.enabled)
     .map((variant) => connector.createSuppliedProduct(
-      `/api/dfc/Enterprises/:EnterpriseName/SuppliedProducts/${variant.id}`
+      suppliedProductMemberUri(enterpriseName, variant.retailVariantId)
     ));
 
   enterprise.supplies = suppliedProducts.map((p) => p.semanticId);

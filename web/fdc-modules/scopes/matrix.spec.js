@@ -49,6 +49,35 @@ describe('getRequiredScope', () => {
     expect(getRequiredScope('/api/dfc/Enterprises/acme/Orders', 'PUT')).toBe(SCOPES.WriteOrders);
   });
 
+  it('does not grant PATCH or DELETE on Orders, which the router lacks', () => {
+    // The order router implements GET/POST on the container and GET/PUT on
+    // members. Granting WriteOrders for PATCH/DELETE would make a client ask
+    // for a verb it can never use — OPTIONS advertises it, the scope check
+    // passes, and then the router 404s for reasons the client cannot predict.
+    // The matrix models the verbs that exist, so it must not invent two more.
+    expect(getRequiredScope('/api/dfc/Enterprises/acme/Orders', 'PATCH')).toBeNull();
+    expect(getRequiredScope('/api/dfc/Enterprises/acme/Orders', 'DELETE')).toBeNull();
+  });
+
+  it('still grants PATCH and DELETE on SuppliedProducts, which does implement them', () => {
+    // The guard above is about Orders specifically, not a blanket removal of
+    // the full CRUD set.
+    expect(getRequiredScope('/api/dfc/Enterprises/acme/SuppliedProducts', 'PATCH'))
+      .toBe(SCOPES.WriteProducts);
+    expect(getRequiredScope('/api/dfc/Enterprises/acme/SuppliedProducts', 'DELETE'))
+      .toBe(SCOPES.WriteProducts);
+  });
+
+  it('resolves an order-line member path like the order container', () => {
+    expect(getRequiredScope('/api/dfc/Enterprises/acme/Orders/42/orderLines', 'GET'))
+      .toBe(SCOPES.ReadOrders);
+    expect(getRequiredScope('/api/dfc/Enterprises/acme/Orders/42/orderLines/7', 'PUT'))
+      .toBe(SCOPES.WriteOrders);
+    // And likewise refuses the verbs the order router does not implement.
+    expect(getRequiredScope('/api/dfc/Enterprises/acme/Orders/42/orderLines/7', 'DELETE'))
+      .toBeNull();
+  });
+
   it('resolves member paths to the container scope', () => {
     // checkScopePermissions matches on the app.use mount path, but a member
     // request must resolve to the same answer if it ever matched on the full
@@ -92,7 +121,9 @@ describe('getRequiredScope', () => {
 
 describe('ADVERTISED_SCOPES', () => {
   it('includes every scope the app actually enforces', () => {
-    const enforced = new Set(Object.values(SCOPE_MAPPING).flatMap((byPath) => Object.values(byPath)));
+    const enforced = new Set(
+      Object.values(SCOPE_MAPPING).flatMap((byPath) => Object.values(byPath))
+    );
     ADVERTISED_SCOPES.forEach((scope) => expect(enforced.has(scope)).toBe(true));
   });
 

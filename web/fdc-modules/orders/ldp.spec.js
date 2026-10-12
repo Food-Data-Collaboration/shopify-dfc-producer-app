@@ -9,9 +9,11 @@
 import {
   orderForbidden,
   orderLineMemberUri,
+  orderLinesContainerUri,
   orderMemberUri,
   orderNotFound,
   ordersContainerUri,
+  sendOrderLinesContainer,
   sendOrderMember,
   sendOrderWrite,
   sendOrdersContainer
@@ -57,6 +59,9 @@ describe('order URIs', () => {
     );
     expect(orderLineMemberUri('acme', '42', '7')).toBe(
       `${host()}/api/dfc/Enterprises/acme/Orders/42/orderLines/7`
+    );
+    expect(orderLinesContainerUri('acme', '42')).toBe(
+      `${host()}/api/dfc/Enterprises/acme/Orders/42/orderLines`
     );
   });
 });
@@ -114,6 +119,52 @@ describe('sendOrderMember / sendOrderWrite', () => {
 
     expect(res.body).toBe(graph);
     expect(JSON.parse(res.body)['@graph'][0]['@type']).toBe('dfc-b:Order');
+  });
+});
+
+describe('sendOrderLinesContainer', () => {
+  it('advertises the container types and Accept-Post, not resource framing', () => {
+    // `/Orders/:id/orderLines` is a collection that accepts POST, so it must
+    // not be framed as an ldp:Resource with Accept-Patch.
+    const res = makeRes();
+    sendOrderLinesContainer(req, res, orderGraph());
+
+    expect(res.statusCode).toBe(200);
+    // An ldp:Container is also an ldp:RDFSource, so both types stay in the
+    // header; the container types are what mark this as a collection.
+    expect(res.headers.Link).toContain(LDP_TYPES.CONTAINER);
+    expect(res.headers.Link).toContain(LDP_TYPES.BASIC_CONTAINER);
+    expect(res.headers['Accept-Post']).toBe('application/ld+json');
+    // Accept-Patch is the tell that the old resource framing advertised a
+    // patchable resource where there is a collection to POST into.
+    expect(res.headers['Accept-Patch']).toBeUndefined();
+  });
+
+  it('does not set Location to the first order line', () => {
+    // Member framing points Location at the representation of this very URI.
+    // For a collection there is no such member, and pointing at the first line
+    // misrepresents the response as being about that line.
+    const res = makeRes();
+    sendOrderLinesContainer(req, res, orderGraph());
+
+    expect(res.headers.Location).toBeUndefined();
+  });
+
+  it('passes the pageInfo cursor through its own header', () => {
+    const res = makeRes();
+    const pageInfo = { hasNextPage: true, endCursor: 'abc' };
+
+    sendOrderLinesContainer(req, res, orderGraph(), { pageInfo });
+
+    expect(JSON.parse(res.headers.pageInfo)).toEqual(pageInfo);
+  });
+
+  it('leaves the body byte-identical to the connector graph', () => {
+    const graph = orderGraph();
+    const res = makeRes();
+    sendOrderLinesContainer(req, res, graph);
+
+    expect(res.body).toBe(graph);
   });
 });
 

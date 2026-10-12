@@ -18,13 +18,19 @@
  * Paths are matched against the *mount* path (`app.use` base), so a member
  * route such as `.../SuppliedProducts/123` inherits its container's row.
  *
- * | Route (mount)                             | GET                   | POST/PUT/PATCH/DELETE |
- * |-------------------------------------------|-----------------------|-----------------------|
- * | `/api/dfc/Enterprises`                     | open (portal-filtered) | —                     |
- * | `/api/dfc/Enterprises/:EnterpriseName`     | ReadEnterprise        | —                     |
- * | `/api/dfc/Enterprises/:E/SuppliedProducts` | ReadProducts          | WriteProducts         |
- * | `/api/dfc/Enterprises/:E/Orders`           | ReadOrders            | WriteOrders           |
- * | `/api/dfc/Enterprises/:E/Portals`          | (Shopify session)     | —                     |
+ * | Route (mount)                  | GET                   | POST | PUT | PATCH | DELETE |
+ * |--------------------------------|-----------------------|------|-----|-------|--------|
+ * | `/api/dfc/Enterprises`         | open (portal-filtered) | -    | -   | -     | -      |
+ * | `:EnterpriseName`              | ReadEnterprise        | -    | -   | -     | -      |
+ * | `:E/SuppliedProducts`          | ReadProducts          | WP   | WP  | WP    | WP     |
+ * | `:E/Orders`                    | ReadOrders            | WO   | WO  | -     | -      |
+ * | `:E/Portals`                   | (Shopify session)     | -    | -   | -     | -      |
+ *
+ * (`:E` = `:EnterpriseName`; every row is under `/api/dfc/Enterprises`.)
+ *
+ * (`WP` = WriteProducts, `WO` = WriteOrders.) Orders deliberately have no
+ * PATCH/DELETE row: the order router registers none, so the matrix must not
+ * imply verbs that only resolve to a router 404.
  *
  * Member paths inherit their container's row, so
  * `…/SuppliedProducts/123` resolves like `…/SuppliedProducts` and
@@ -62,6 +68,11 @@ export const SCOPE_MAPPING = {
     [SUPPLIED_PRODUCTS]: SCOPES.ReadProducts,
     [ORDERS]: SCOPES.ReadOrders
   },
+  // Orders are not a full CRUD resource. The router implements POST on the
+  // container and GET/PUT on members; there is no PATCH or DELETE handler, so
+  // granting those scopes here would let a client request a verb that can only
+  // ever 404 — while OPTIONS advertises it. Keep this row aligned with the
+  // verbs the order router actually registers.
   POST: {
     [SUPPLIED_PRODUCTS]: SCOPES.WriteProducts,
     [ORDERS]: SCOPES.WriteOrders
@@ -71,12 +82,10 @@ export const SCOPE_MAPPING = {
     [ORDERS]: SCOPES.WriteOrders
   },
   PATCH: {
-    [SUPPLIED_PRODUCTS]: SCOPES.WriteProducts,
-    [ORDERS]: SCOPES.WriteOrders
+    [SUPPLIED_PRODUCTS]: SCOPES.WriteProducts
   },
   DELETE: {
-    [SUPPLIED_PRODUCTS]: SCOPES.WriteProducts,
-    [ORDERS]: SCOPES.WriteOrders
+    [SUPPLIED_PRODUCTS]: SCOPES.WriteProducts
   }
 };
 

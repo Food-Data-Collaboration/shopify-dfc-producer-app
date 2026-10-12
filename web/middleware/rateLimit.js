@@ -24,48 +24,28 @@ const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MAX = 120;
 
 /**
- * Identify the caller. Preference order:
- *   1. the OIDC client_id, when the token has already been introspected —
- *      this is the real consumer, and grouping by it is what makes the limit
- *      fair between the hubs behind one NAT;
- *   2. the OAuth2 token's `sub` claim, read without verification purely as a
- *      bucket key (never for authorization) so a single user cannot exhaust
- *      the whole budget;
- *   3. the remote address.
+ * Identify the caller, for bucket keying only — never for authorization.
+ *
+ *   1. The OIDC `client_id`, when the token has already been introspected.
+ *      This is the real consumer and grouping by it is what makes the budget
+ *      fair between hubs behind one NAT.
+ *   2. The remote address, for everything else.
+ *
+ * There is deliberately no middle option keyed on a claim read out of the
+ * bearer token. The limiter is mounted *before* `checkUserAccessPermissions`,
+ * so on the request path that actually matters the token is still unverified
+ * and every claim in it is attacker-controlled: an unsigned token carrying a
+ * fresh `sub` per request would mint a fresh bucket per request and defeat the
+ * limit entirely, while also growing `buckets` unboundedly. Keying such traffic
+ * on the address is the only choice that cannot be steered by the caller.
+ *
+ * The cost is that hubs sharing an address share a budget. That is the correct
+ * trade while the token is unverified: one address is one network location, and
+ * a per-`client_id` split becomes available as soon as introspection runs.
  */
-/**
- * Read the `sub` claim without verifying the signature. This is only ever used
- * to spread load across buckets, never to grant or deny access, so an
- * attacker forging a token gains nothing but their own bucket.
- */
-const unverifiedSubject = (jwt) => {
-  try {
-    const [, payload] = jwt.split('.');
-    if (!payload) {
-      return null;
-    }
-    const normalised = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padding = (4 - (normalised.length % 4)) % 4;
-    const padded = normalised.padEnd(normalised.length + padding, '=');
-    const { sub } = JSON.parse(Buffer.from(padded, 'base64').toString());
-    return typeof sub === 'string' ? sub.slice(0, 64) : null;
-  } catch {
-    // Opaque (non-JWT) tokens have no readable subject; fall through to the IP.
-    return null;
-  }
-};
-
 const clientKey = (req) => {
   if (req.tokenSet?.client_id) {
     return `client:${req.tokenSet.client_id}`;
-  }
-
-  const header = req.get('authorization');
-  if (header?.startsWith('Bearer ') || header?.startsWith('JWT ')) {
-    const sub = unverifiedSubject(header.split(' ')[1]);
-    if (sub) {
-      return `sub:${sub}`;
-    }
   }
 
   return `ip:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
@@ -91,13 +71,19 @@ const allow = (key, now, windowMs, max) => {
   return true;
 };
 
-/** Drop buckets nobody has touched in a while, so the map cannot grow forever. */
-const prune = (now) => {
+/**
+ * Drop buckets nobody has touched in a while, so the map cannot grow forever.
+ *
+ * Takes the window from the caller rather than reading the default: a
+ * deployment that widens `DFC_RATE_LIMIT_WINDOW_MS` was previously pruning
+ * against a 60s window and keeping entries its own budget would have expired.
+ */
+const prune = (now, windowMs) => {
   if (buckets.size < 1000) {
     return;
   }
   [...buckets.entries()]
-    .filter(([, hits]) => !hits.some((at) => now - at < DEFAULT_WINDOW_MS))
+    .filter(([, hits]) => !hits.some((at) => now - at < windowMs))
     .forEach(([key]) => buckets.delete(key));
 };
 
@@ -114,7 +100,7 @@ const rateLimit = ({
 } = {}) => {
   const limiter = (req, res, next) => {
     const now = Date.now();
-    prune(now);
+    prune(now, windowMs);
 
     if (allow(clientKey(req), now, windowMs, max)) {
       return next();

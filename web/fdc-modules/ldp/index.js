@@ -448,7 +448,15 @@ export const parseLdpBody = (req) => {
 };
 
 /** The verbs an LDP container or member accepts, for the `Allow` header. */
-const allowedMethods = ({ container, writable }) => {
+const allowedMethods = ({ container, writable, methods }) => {
+  // An explicit list wins. Orders are not full CRUD — the router implements
+  // POST on the container and GET/PUT on members — so their OPTIONS must not
+  // reuse the product set and advertise verbs that can only 404. `Allow` is a
+  // promise: it should match `web/fdc-modules/scopes/matrix.js`, which models
+  // the same verb set.
+  if (methods) {
+    return methods;
+  }
   if (container) {
     // Only advertise POST on a container that actually accepts one. Telling a
     // client it may publish to a read-only container sends it into a 405 it
@@ -468,10 +476,10 @@ const allowedMethods = ({ container, writable }) => {
  * letting DRF fall through to schema advertisement, so hub clients get
  * `Allow` / `Accept-Post` / `Accept-Patch` without a body.
  */
-export const ldpOptions = ({ container, writable }) => {
+export const ldpOptions = ({ container, writable, methods }) => {
   // Order matches DjangoLDP: read/create on a container, the write verbs then
   // HEAD/OPTIONS on a member.
-  const allow = allowedMethods({ container, writable });
+  const allow = allowedMethods({ container, writable, methods });
 
   return (req, res) => {
     res.set('Allow', allow.join(', '));

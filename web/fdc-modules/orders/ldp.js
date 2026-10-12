@@ -52,13 +52,36 @@ export const sendOrdersContainer = (req, res, graph, { pageInfo } = {}) => {
   return sendGraph(req, res, graph, { container: true, writable: true });
 };
 
-/** `GET /Orders/:id` (and `GET /Orders/:id/orderLines`) — member framing. */
+/** `GET /Orders/:id` — member framing. */
 export const sendOrderMember = (req, res, graph) => {
   const [memberUri] = memberUrisIn(graph);
   return sendGraph(req, res, graph, {
     member: true,
     writable: true,
     location: memberUri
+  });
+};
+
+/** `{HOST}api/dfc/Enterprises/{shop}/Orders/{orderId}/orderLines` */
+export const orderLinesContainerUri = (enterpriseName, orderId) =>
+  containerUri('api/dfc/Enterprises', enterpriseName, 'Orders', orderId, 'orderLines');
+
+/**
+ * `GET /Orders/:id/orderLines` — container framing, not member framing.
+ *
+ * This route returns a *collection* of order lines and accepts POST, so it is
+ * an `ldp:Container`. Framing it as a resource was wrong twice over: it
+ * advertised `Accept-Patch` for a collection, and pointed `Location` at the
+ * first line as though that line were the representation of this URI. `pageInfo`
+ * still rides in its own header, which is where the paging cursor belongs.
+ */
+export const sendOrderLinesContainer = (req, res, graph, { pageInfo } = {}) => {
+  if (pageInfo) {
+    res.set('pageInfo', JSON.stringify(pageInfo));
+  }
+  return sendGraph(req, res, graph, {
+    container: true,
+    writable: true
   });
 };
 

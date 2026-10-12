@@ -173,6 +173,9 @@ const currencyForUnit = (unit) => {
   }[measure] || null;
 };
 
+/** The measure IRI of a `dfc-b:hasUnit`, string or node alike. */
+const unitNameOf = (unit) => (typeof unit === 'string' ? unit : unit?.semanticId);
+
 /** Flatten a JSON-LD document into its member descriptions. */
 const rawMembersOf = (body) => {
   if (Array.isArray(body)) {
@@ -563,6 +566,12 @@ const applyUpdate = async (req, res, { partial }) => {
   const priceValue = price && price.value !== undefined && price.value !== null
     ? String(price.value)
     : undefined;
+
+  // An unrecognised unit resolves to null, which is indistinguishable from an
+  // absent one if we only test truthiness — and both would skip validation and
+  // write the bare number as the shop's currency. So a value without a
+  // recognised currency unit is rejected outright rather than assumed.
+  const hasPriceUnit = Boolean(price && price.hasUnit);
   const priceCurrency = price ? currencyForUnit(price.hasUnit) : null;
 
   const catalogItem = rawMembers.find(
@@ -572,6 +581,20 @@ const applyUpdate = async (req, res, { partial }) => {
   const sku = catalogItem?.['dfc-b:sku'];
 
   const client = await clientFor(EnterpriseName);
+
+  // A value we cannot read as a currency is not a price we can safely write:
+  // "0.5 Kilogram" or a bare "2.49" would both be sent to Shopify as a money
+  // amount in the shop currency. Reject before anything is written.
+  if (priceValue !== undefined && !priceCurrency) {
+    throw fail(
+      `Price value ${priceValue} has no recognised currency unit`
+      + `${hasPriceUnit ? ` (dfc-b:hasUnit was "${unitNameOf(price.hasUnit)}")` : ' (dfc-b:hasUnit is absent)'}. `
+      + 'This dataserver does not convert and will not guess a currency; send '
+      + 'dfc-b:hasUnit as one of dfc-m:Euro, dfc-m:PoundSterling or dfc-m:USDollar.',
+      422,
+      'Unprocessable entity'
+    );
+  }
 
   // Reject a cross-currency price before writing anything.
   if (priceValue !== undefined && priceCurrency) {

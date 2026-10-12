@@ -168,22 +168,41 @@ app.all(
 app.options(
   '/api/dfc/Enterprises/:EnterpriseName/Orders',
   corsPreflight(),
-  ldpOptions({ container: true, writable: true })
+  // The order router has no PATCH/DELETE handler, so advertising them would
+  // promise a verb that can only 404. Mirrors the Orders rows in
+  // `web/fdc-modules/scopes/matrix.js`.
+  ldpOptions({
+    container: true,
+    writable: true,
+    methods: ['GET', 'POST', 'HEAD', 'OPTIONS']
+  })
 );
 app.options(
   '/api/dfc/Enterprises/:EnterpriseName/Orders/:id',
   corsPreflight(),
-  ldpOptions({ container: false, writable: true })
+  ldpOptions({
+    container: false,
+    writable: true,
+    methods: ['GET', 'PUT', 'HEAD', 'OPTIONS']
+  })
 );
 app.options(
   '/api/dfc/Enterprises/:EnterpriseName/Orders/:id/orderLines',
   corsPreflight(),
-  ldpOptions({ container: true, writable: true })
+  ldpOptions({
+    container: true,
+    writable: true,
+    methods: ['GET', 'POST', 'HEAD', 'OPTIONS']
+  })
 );
 app.options(
   '/api/dfc/Enterprises/:EnterpriseName/Orders/:id/orderLines/:lineId',
   corsPreflight(),
-  ldpOptions({ container: false, writable: true })
+  ldpOptions({
+    container: false,
+    writable: true,
+    methods: ['GET', 'PUT', 'HEAD', 'OPTIONS']
+  })
 );
 
 // The wildcard `*/json` type does NOT match `application/ld+json`, so the
