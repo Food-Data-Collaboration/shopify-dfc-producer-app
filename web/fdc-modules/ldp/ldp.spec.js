@@ -18,7 +18,8 @@ import {
   parseLdpBody,
   preferReturn,
   sendLdp,
-  sendProblem
+  sendProblem,
+  withLdpErrors
 } from './index.js';
 
 const V2 = 'https://w3id.org/dfc/ontology/v2.0.0/context/context_2.0.0.json';
@@ -388,5 +389,66 @@ describe('ldpOptions', () => {
     ldpOptions({ container: true, writable: false })(makeReq({ method: 'OPTIONS' }), container);
     expect(container.headers.Allow).toBe('GET, HEAD, OPTIONS');
     expect(container.headers['Accept-Post']).toBeUndefined();
+  });
+});
+
+describe('withLdpErrors', () => {
+  // `console.error(fmt, ...args)` treats `%s`/`%d`/`%j`/`%o` in `fmt` as
+  // substitution slots. `req.originalUrl` is attacker-controlled, so an
+  // unescaped `%s` would let a request forge or garble server logs (and `%j`
+  // can throw on a bad parse). The URL must not reach the logger as a format
+  // string.
+  it('does not let a URL containing format specifiers reach the logger as a format string', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const res = makeRes();
+    const req = {
+      method: 'GET',
+      originalUrl: '/api/dfc/Enterprises/acme?note=%s%s%nInjected',
+      url: '/api/dfc/Enterprises/acme?note=%s%s%nInjected',
+      headers: {}
+    };
+
+    const boom = new Error('kaboom');
+    boom.status = 500;
+
+    try {
+      await withLdpErrors(() => { throw boom; })(req, res, () => {});
+    } finally {
+      // no-op: assertion below
+    }
+
+    const [fmt, err] = spy.mock.calls[0];
+    spy.mockRestore();
+
+    expect(err).toBe(boom);
+    // Every `%` from the URL is doubled, so Node sees literal text.
+    expect(fmt).toContain('%%s%%s%%nInjected');
+    // Removing every `%%` pair must leave no bare `%` behind.
+    expect(fmt.replace(/%%/g, '')).not.toContain('%');
+  });
+
+  it('sends a problem document rather than leaking the error message on a 5xx', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const res = makeRes();
+    const boom = new Error('sensitive internal detail');
+    boom.status = 500;
+
+    await withLdpErrors(() => { throw boom; })(
+      {
+        method: 'GET',
+        originalUrl: '/x',
+        url: '/x',
+        headers: {},
+        params: {}
+      },
+      res,
+      () => {}
+    );
+    spy.mockRestore();
+
+    expect(res.statusCode).toBe(500);
+    const body = JSON.parse(res.body);
+    expect(body.detail).toBe('The resource could not be processed');
+    expect(res.body).not.toContain('sensitive internal detail');
   });
 });
