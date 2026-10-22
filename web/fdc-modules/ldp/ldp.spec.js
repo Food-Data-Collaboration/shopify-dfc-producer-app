@@ -393,38 +393,77 @@ describe('ldpOptions', () => {
 });
 
 describe('withLdpErrors', () => {
-  // `console.error(fmt, ...args)` treats `%s`/`%d`/`%j`/`%o` in `fmt` as
-  // substitution slots. `req.originalUrl` is attacker-controlled, so an
-  // unescaped `%s` would let a request forge or garble server logs (and `%j`
-  // can throw on a bad parse). The URL must not reach the logger as a format
-  // string.
-  it('does not let a URL containing format specifiers reach the logger as a format string', async () => {
+  // `console.error(fmt, ...args)` performs `%s`/`%d`/`%j`/`%o` substitution on
+  // its FIRST argument only. `req.originalUrl` is attacker-controlled, so it
+  // must never occupy that position: an unescaped `%s` would let a request
+  // forge or garble server logs, and `%j` can throw while reporting a throw.
+  // The defence is structural -- a constant first argument -- rather than
+  // escaping, because escaping leaves request data in the format-string slot.
+  const reqDouble = (url) => ({
+    method: 'GET',
+    originalUrl: url,
+    url,
+    headers: {}
+  });
+
+  it('keeps request-derived values out of the format-string argument', async () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const res = makeRes();
-    const req = {
-      method: 'GET',
-      originalUrl: '/api/dfc/Enterprises/acme?note=%s%s%nInjected',
-      url: '/api/dfc/Enterprises/acme?note=%s%s%nInjected',
-      headers: {}
-    };
+    const url = '/api/dfc/Enterprises/acme?note=%s%s%nInjected';
 
     const boom = new Error('kaboom');
     boom.status = 500;
 
-    try {
-      await withLdpErrors(() => { throw boom; })(req, res, () => {});
-    } finally {
-      // no-op: assertion below
-    }
+    await withLdpErrors(() => { throw boom; })(reqDouble(url), res, () => {});
 
-    const [fmt, err] = spy.mock.calls[0];
+    const [fmt, method, loggedUrl, err] = spy.mock.calls[0];
     spy.mockRestore();
 
+    // The format string is a constant: no request data, and not a single `%`.
+    expect(fmt).toBe('LDP handler failed');
+    expect(fmt).not.toContain('%');
+
+    // The URL still reaches the log, as data, with control characters removed.
+    expect(method).toBe('GET');
+    expect(loggedUrl).toBe(url);
     expect(err).toBe(boom);
-    // Every `%` from the URL is doubled, so Node sees literal text.
-    expect(fmt).toContain('%%s%%s%%nInjected');
-    // Removing every `%%` pair must leave no bare `%` behind.
-    expect(fmt.replace(/%%/g, '')).not.toContain('%');
+  });
+
+  it('strips newlines from the logged URL so log entries cannot be forged', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const res = makeRes();
+
+    const boom = new Error('kaboom');
+    boom.status = 500;
+
+    await withLdpErrors(() => { throw boom; })(
+      reqDouble('/x?note=forged%0Aentry\r\nFAKE LOG'),
+      res,
+      () => {}
+    );
+
+    const loggedUrl = spy.mock.calls[0][2];
+    spy.mockRestore();
+
+    expect(loggedUrl).not.toMatch(/[\r\n]/);
+    expect(loggedUrl).toBe('/x?note=forged%0AentryFAKE LOG');
+  });
+
+  it('passes request values through verbatim, with no format substitution applied', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const res = makeRes();
+
+    const boom = new Error('kaboom');
+    boom.status = 500;
+
+    // If the URL were in the format-string position, `%s` would swallow the
+    // next argument. Printing it as a separate argument keeps it intact.
+    await withLdpErrors(() => { throw boom; })(reqDouble('/x?e=%s'), res, () => {});
+
+    const loggedUrl = spy.mock.calls[0][2];
+    spy.mockRestore();
+
+    expect(loggedUrl).toBe('/x?e=%s');
   });
 
   it('sends a problem document rather than leaking the error message on a 5xx', async () => {

@@ -511,22 +511,17 @@ export const ldpOptions = ({ container, writable, methods }) => {
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 
 /**
- * Scrub a request-derived value before it goes into a log line.
+ * Strip control characters from a request-derived value before it is logged.
  *
- * `req.originalUrl` is attacker-controlled, so two things have to go:
+ * `req.originalUrl` is attacker-controlled: a newline would forge whole log
+ * entries, and ANSI escapes can corrupt a terminal reading the logs.
  *
- * - Control characters, which would forge whole log entries and can corrupt
- *   a terminal reading the logs.
- * - `%`, because `console.error(fmt, ...args)` treats `%s`, `%d`, `%j`, `%o`
- *   and friends in its first argument as substitution slots. Without doubling
- *   it, a request to `...?note=%s` would make Node interpolate the next
- *   argument into the message, and `%j` on a malformed payload can throw.
- *   Doubling makes every `%` literal, so the value can never act as a format
- *   string (CodeQL: js/tainted-format-string).
+ * This is deliberately NOT a format-string defence. `console.error` only
+ * interprets `%s`/`%d`/`%j`/`%o` in its FIRST argument, and the caller keeps
+ * that argument a constant (see `withLdpErrors`); values passed after it are
+ * printed verbatim. Format safety is structural here, not string-sanitised.
  */
-const logSafe = (value) => String(value)
-  .replace(CONTROL_CHARS, '')
-  .replace(/%/g, '%%');
+const logSafe = (value) => String(value).replace(CONTROL_CHARS, '');
 
 /**
  * Wrap an express handler so anything it throws becomes a problem document
@@ -542,9 +537,20 @@ export const withLdpErrors = (handler) => async (req, res, next) => {
     }
     const status = error.status || 500;
     if (status >= 500) {
+      // The FIRST argument of `console.error` is its *format string*: Node
+      // performs `%s`/`%d`/`%j`/`%o` substitution on it. It must therefore
+      // never contain request-derived text (CodeQL: js/tainted-format-string).
+      // Keeping it a constant and handing the request details over as
+      // subsequent arguments leaves no taint in the format-string position;
+      // those arguments are printed verbatim and are never interpreted.
+      //
+      // `logSafe` still scrubs the URL separately, for newline / ANSI log
+      // forging, which is a different concern from format substitution.
       // eslint-disable-next-line no-console
       console.error(
-        `LDP ${logSafe(req.method)} ${logSafe(req.originalUrl || req.url)} failed`,
+        'LDP handler failed',
+        logSafe(req.method),
+        logSafe(req.originalUrl || req.url),
         error
       );
     }
