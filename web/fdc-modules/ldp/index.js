@@ -325,7 +325,13 @@ export const sendLdp = (req, res, status, body, options = {}) => {
   // which would let a problem `detail` (built from request-derived text) be
   // rendered as HTML. Pin the type first and add nosniff so a browser cannot
   // be talked into sniffing the body as markup.
-  res.type(LDP_CONTENT_TYPES);
+  //
+  // Use `res.set('Content-Type', ...)` rather than `res.type(...)`: they are
+  // equivalent at runtime for a literal MIME type, but only `set`/`header` are
+  // modelled as content-type header definitions by CodeQL's Express model.
+  // Without that, js/reflected-xss cannot see the mitigation and reports
+  // `res.send(payload)` as an unguarded sink (alert 13).
+  res.set('Content-Type', LDP_CONTENT_TYPES);
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Vary', 'Accept');
   res.set('ETag', etagFor(payload));
