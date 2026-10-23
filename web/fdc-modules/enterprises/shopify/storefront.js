@@ -1,4 +1,4 @@
-import { LATEST_API_VERSION } from '@shopify/shopify-api';
+import { ApiVersion } from '@shopify/shopify-api';
 
 const SHOPIFY_STORE_REGEX = /^[a-z0-9][a-z0-9-]+$/i;
 
@@ -7,7 +7,7 @@ export default async function getLogo(store, storeFrontAccessToken) {
     throw new Error(`Invalid Shopify store name: ${store}`);
   }
 
-  const response = await fetch(`https://${store}.myshopify.com/api/${LATEST_API_VERSION}/graphql.json`, {
+  const response = await fetch(`https://${store}.myshopify.com/api/${ApiVersion.July26}/graphql.json`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

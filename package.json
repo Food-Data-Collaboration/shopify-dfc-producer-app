@@ -28,10 +28,10 @@
     "passport": "^0.6.0",
     "passport-openidconnect": "^0.1.1",
     "pg": "^8.11.3",
-    "sqlite3": "^5.1.6",
+    "sqlite3": "^6.0.1",
     "supertest": "^6.3.3",
     "ts-jest": "^29.1.1",
-    "vitest": "^0.32.2",
+    "vitest": "^3.2.6",
     "yup": "^1.2.0",
     "yup-env": "^2.0.0"
   },
