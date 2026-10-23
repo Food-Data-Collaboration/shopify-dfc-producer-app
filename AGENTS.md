@@ -82,18 +82,33 @@ federation, no proxy-import, no CSV import, no persons container.
 - Shopify GraphQL writes live in `web/fdc-modules/products/controllers/shopify/mutations.js`;
   `Shopify userErrors` are translated to 422, not 500.
 - **Rate limiting** (`web/middleware/rateLimit.js`, mounted in `app.js` on every
-  authorizing DFC route). Dependency-free fixed-window, in-memory, keyed by
-  OIDC `client_id` when the token has been introspected, **else the remote
-  address**. There is deliberately no middle option keyed on a claim read from
-  the bearer token: the limiter runs *before* `checkUserAccessPermissions`, so
-  on that path the token is unverified and a fresh `sub` per request would mint
-  a fresh bucket per request. The `client_id` branch is therefore dead code on
-  the routes as mounted — it only engages if introspection runs first.
-  Defaults 120 req / 60s, overridden by `DFC_RATE_LIMIT_MAX` /
-  `DFC_RATE_LIMIT_WINDOW_MS`. Per-process state: correct for a single
-  instance, each replica enforces its own budget when scaled — swap the store
-  for Redis if that matters. Not related to PR #94, which
-  retries *outbound* Shopify calls on rate limit.
+  authorizing DFC route). Backed by **`express-rate-limit`** (v8), in-memory,
+  fixed window, keyed by OIDC `client_id` when the token has been introspected,
+  **else the remote address**. There is deliberately no middle option keyed on a
+  claim read from the bearer token: the limiter runs *before*
+  `checkUserAccessPermissions`, so on that path the token is unverified and a
+  fresh `sub` per request would mint a fresh bucket per request. The `client_id`
+  branch is therefore dead code on the routes as mounted — it only engages if
+  introspection runs first. Defaults 120 req / 60s, overridden by
+  `DFC_RATE_LIMIT_MAX` / `DFC_RATE_LIMIT_WINDOW_MS`.
+  - **Why the library and not ~40 lines of arithmetic.** It was hand-rolled and
+    correct, but CodeQL's `js/missing-rate-limiting` only recognises a fixed set
+    of npm limiters (`express-rate-limit`, `express-brute`, `express-limiter`,
+    `rate-limiter-flexible`, `fastify-rate-limit`), matched on the import. A
+    custom middleware can never satisfy the query, however correct it is.
+  - The address goes through `ipKeyGenerator` (the library's IPv6 normaliser),
+    so an IPv6 client is collapsed to its /56 instead of getting a fresh bucket
+    per address in a /64. Do not read `req.ip` directly in `clientKey` — v8's
+    `keyGeneratorIpFallback` validation throws on that at construction.
+  - `validate: { xForwardedForHeader: false }`. `trust proxy` is not configured,
+    so behind a load balancer every request appears to come from the proxy; v8
+    turns a present `X-Forwarded-For` into a 500 in that state. Disabling the
+    check keeps the pre-existing one-bucket-per-proxy behaviour. Configure
+    `trust proxy` and re-enable it if per-client budgets are needed behind a
+    proxy.
+  - Per-process state: correct for a single instance, each replica enforces its
+    own budget when scaled — swap the store for Redis if that matters. Not
+    related to PR #94, which retries *outbound* Shopify calls on rate limit.
 - **Security decisions worth knowing before editing `sendLdp`:** the ETag is
   SHA-256 (not a security boundary, just not a deprecated digest); `Location`
   is only emitted when it is a same-origin absolute URI, so a route param can

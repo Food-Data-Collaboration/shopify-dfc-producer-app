@@ -1,5 +1,5 @@
 /**
- * A small fixed-window rate limiter for the public DFC API.
+ * Rate limiting for the public DFC API, backed by `express-rate-limit`.
  *
  * Why this exists: `checkUserAccessPermissions` introspects an OIDC token on
  * every request (a network round trip to the identity provider) before it
@@ -7,15 +7,20 @@
  * into a request-amplification loop against both us and the IdP — which is
  * what CodeQL flags as "route performs authorization but is not rate-limited".
  *
- * Deliberately dependency-free and in-memory:
- *   - no new package in the lockfile for ~40 lines of arithmetic;
- *   - per-process state, which is correct for a single-instance deployment
- *     and no worse than nothing when scaled horizontally (each instance
- *     enforces its own budget).
+ * This used to be a hand-rolled fixed-window counter. It was replaced with
+ * `express-rate-limit` for one concrete reason: CodeQL's
+ * `js/missing-rate-limiting` query only recognises a fixed set of npm
+ * limiters (`express-rate-limit`, `express-brute`, `express-limiter`,
+ * `rate-limiter-flexible`, `fastify-rate-limit`), matching on the import, and
+ * a custom middleware can never satisfy it however correct it is. The library
+ * is the same in-memory fixed window the hand-rolled version implemented, and
+ * it adds the IPv6 subnet handling described at `clientKey`.
  *
- * If this ever runs behind multiple replicas behind a load balancer, swap the
- * store for Redis; the middleware signature will not need to change.
+ * Per-process state: correct for a single-instance deployment, and each
+ * replica enforces its own budget when scaled. Swap the store for Redis if
+ * that matters; the middleware signature does not need to change.
  */
+import { ipKeyGenerator } from 'express-rate-limit';
 
 /** Window length. Long enough not to break a hub crawling a container. */
 const DEFAULT_WINDOW_MS = 60_000;
@@ -36,94 +41,73 @@ const DEFAULT_MAX = 120;
  * so on the request path that actually matters the token is still unverified
  * and every claim in it is attacker-controlled: an unsigned token carrying a
  * fresh `sub` per request would mint a fresh bucket per request and defeat the
- * limit entirely, while also growing `buckets` unboundedly. Keying such traffic
- * on the address is the only choice that cannot be steered by the caller.
+ * limit entirely, while also growing the store unboundedly. Keying such
+ * traffic on the address is the only choice that cannot be steered by the
+ * caller.
  *
  * The cost is that hubs sharing an address share a budget. That is the correct
- * trade while the token is unverified: one address is one network location, and
- * a per-`client_id` split becomes available as soon as introspection runs.
+ * trade while the token is unverified: one address is one network location,
+ * and a per-`client_id` split becomes available as soon as introspection runs.
+ *
+ * The address is passed through `ipKeyGenerator`, the library's IPv6-aware
+ * normaliser. Left raw, a caller holding a /64 has 2^64 addresses and can mint
+ * a fresh bucket with each; the helper collapses an IPv6 client to its /56
+ * subnet. IPv4 addresses come back unchanged.
  */
 const clientKey = (req) => {
   if (req.tokenSet?.client_id) {
     return `client:${req.tokenSet.client_id}`;
   }
 
-  return `ip:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
+  const address = req.ip || req.socket?.remoteAddress || 'unknown';
+  return `ip:${ipKeyGenerator(address)}`;
+};
+
+/** RFC 7807 body for a limited request, plus the headers a client retries on. */
+const limitedResponse = (req, res, _next, options) => {
+  const status = options.statusCode || 429;
+  const retryAfter = Math.ceil(options.windowMs / 1000);
+
+  res.set('Retry-After', String(retryAfter));
+  res.set('Vary', 'Accept, Authorization');
+
+  return res.status(status).json({
+    type: 'about:blank',
+    title: 'Too many requests',
+    status,
+    detail: `Rate limit exceeded. Retry after ${retryAfter}s.`
+  });
 };
 
 /**
- * Sliding-window counter keyed by client. Old entries are pruned lazily on
- * write rather than by a timer, so there is nothing to keep alive and nothing
- * to leak if the process is restarted.
- */
-const buckets = new Map();
-
-const allow = (key, now, windowMs, max) => {
-  const recent = (buckets.get(key) || []).filter((at) => now - at < windowMs);
-
-  if (recent.length >= max) {
-    buckets.set(key, recent);
-    return false;
-  }
-
-  recent.push(now);
-  buckets.set(key, recent);
-  return true;
-};
-
-/**
- * Drop buckets nobody has touched in a while, so the map cannot grow forever.
+ * Options for `express-rate-limit`. Kept here rather than inline at the mount
+ * site so the limiter's identity (`clientKey`, problem document) has one home.
  *
- * Takes the window from the caller rather than reading the default: a
- * deployment that widens `DFC_RATE_LIMIT_WINDOW_MS` was previously pruning
- * against a 60s window and keeping entries its own budget would have expired.
- */
-const prune = (now, windowMs) => {
-  if (buckets.size < 1000) {
-    return;
-  }
-  [...buckets.entries()]
-    .filter(([, hits]) => !hits.some((at) => now - at < windowMs))
-    .forEach(([key]) => buckets.delete(key));
-};
-
-/**
  * @param {object} [options]
  * @param {number} [options.windowMs] window length in ms
  * @param {number} [options.max] requests allowed per window per client
  * @param {Function} [options.onLimit] called instead of the default 429 body
  */
-const rateLimit = ({
+const rateLimiterOptions = ({
   windowMs = DEFAULT_WINDOW_MS,
   max = DEFAULT_MAX,
   onLimit
-} = {}) => {
-  const limiter = (req, res, next) => {
-    const now = Date.now();
-    prune(now, windowMs);
+} = {}) => ({
+  windowMs,
+  limit: max,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: clientKey,
+  handler: onLimit || limitedResponse,
 
-    if (allow(clientKey(req), now, windowMs, max)) {
-      return next();
-    }
+  // `trust proxy` is not configured, so behind a load balancer every request
+  // appears to come from the proxy and shares one bucket. That is the
+  // pre-existing behaviour. Express-rate-limit's `xForwardedForHeader` check
+  // turns that situation into a 500 for every request that carries the
+  // header, so it is disabled here rather than taking the app down on
+  // deployment. Configure `trust proxy` (and then re-enable the check) if
+  // per-client budgets are needed behind a proxy.
+  validate: { xForwardedForHeader: false }
+});
 
-    const retryAfter = Math.ceil(windowMs / 1000);
-    res.set('Retry-After', String(retryAfter));
-    res.set('Vary', 'Accept, Authorization');
-
-    if (onLimit) {
-      return onLimit(req, res);
-    }
-
-    return res.status(429).json({
-      type: 'about:blank',
-      title: 'Too many requests',
-      status: 429,
-      detail: `Rate limit exceeded. Retry after ${retryAfter}s.`
-    });
-  };
-
-  limiter.reset = () => buckets.clear();
-  return limiter;
-};
-
-export default rateLimit;
+export default rateLimiterOptions;

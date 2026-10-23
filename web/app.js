@@ -4,6 +4,7 @@ import { join } from 'path';
 import { readFileSync } from 'fs';
 import dotenv from 'dotenv';
 import express from 'express';
+import { rateLimit as expressRateLimit } from 'express-rate-limit';
 import serveStatic from 'serve-static';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -33,7 +34,7 @@ import {
 import { ldpOptions, withLdpErrors } from './fdc-modules/ldp/index.js';
 import { checkShopOnboarding } from './middleware/checkShopOnboarding.js';
 import populateShop from './middleware/populateShopId.js';
-import rateLimit from './middleware/rateLimit.js';
+import rateLimiterOptions from './middleware/rateLimit.js';
 
 dotenv.config();
 
@@ -83,10 +84,10 @@ app.use('/fdc', cors(), express.json(), legacyfdcRouter);
 // before it authorizes anything, so the whole public surface is rate limited
 // as one budget. Cheaper to mount once than per route, and it means a single
 // caller cannot spread load across routes to dodge per-route caps.
-const dfcRateLimit = rateLimit({
+const dfcRateLimit = expressRateLimit(rateLimiterOptions({
   windowMs: config.DFC_RATE_LIMIT_WINDOW_MS || 60_000,
   max: config.DFC_RATE_LIMIT_MAX || 120
-});
+}));
 
 // WebID self-description, unauthenticated like DjangoLDP's /profile.
 app.get('/profile', cors(), profile);
