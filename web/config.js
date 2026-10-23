@@ -20,7 +20,12 @@ const schema = yup.object().shape({
   // tokens (e.g. "account,proto-dfc"). Empty/unset = strict legacy behavior:
   // only OIDC_CLIENT_ID is accepted. See DEPLOYMENT_STRATEGY.md
   // "DFC trusted audiences" for the add/remove/amend procedure.
-  OIDC_TRUSTED_AUDIENCES: yup.string()
+  OIDC_TRUSTED_AUDIENCES: yup.string(),
+  // Rate limit for the public DFC API, per client identity (OIDC client_id,
+  // else token subject, else IP). Unset = 120 requests per 60s. Lower this if
+  // the identity provider's introspection endpoint is the bottleneck.
+  DFC_RATE_LIMIT_MAX: yup.number(),
+  DFC_RATE_LIMIT_WINDOW_MS: yup.number()
 });
 
 const createConfig = () => {
@@ -43,7 +48,9 @@ const createConfig = () => {
     DATABASE_HOST_URL: envVars.DATABASE_HOST_URL,
     SHOP_REGISTRY_DATABASE_NAME: envVars.SHOP_REGISTRY_DATABASE_NAME,
     OIDC_ISSUER: envVars.OIDC_ISSUER,
-    OIDC_TRUSTED_AUDIENCES: envVars.OIDC_TRUSTED_AUDIENCES
+    OIDC_TRUSTED_AUDIENCES: envVars.OIDC_TRUSTED_AUDIENCES,
+    DFC_RATE_LIMIT_MAX: envVars.DFC_RATE_LIMIT_MAX,
+    DFC_RATE_LIMIT_WINDOW_MS: envVars.DFC_RATE_LIMIT_WINDOW_MS
   };
 };
 
