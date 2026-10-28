@@ -12,7 +12,7 @@
     "node": ">=20.10.0"
   },
   "dependencies": {
-    "@datafoodconsortium/connector": "1.0.0-beta.2",
+    "@siol-data/linkml-connector": "npm:@jsr/siol-data__linkml-connector@2.0.5",
     "@shopify/cli": "^3.78.2",
     "@shopify/shopify-app-express": "^5.0.17",
     "@shopify/shopify-app-session-storage-postgresql": "^4.0.17",
@@ -22,6 +22,7 @@
     "cors": "^2.8.5",
     "cross-env": "^7.0.3",
     "dotenv": "^16.0.3",
+    "express-rate-limit": "^8.7.1",
     "morgan": "^1.10.0",
     "nock": "^13.3.1",
     "openid-client": "^5.5.0",

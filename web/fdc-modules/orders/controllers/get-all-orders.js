@@ -4,14 +4,8 @@ import { findCustomer } from './shopify/customer.js';
 import getSession from '../../../utils/getShopifySession.js';
 import { createBulkDfcOrderFromShopify } from '../dfc/dfc-order.js';
 import { findOrders } from './shopify/orders.js';
-
-function respond(res, graph, pageInfo) {
-  res.type('application/json');
-  if (pageInfo) {
-    res.set('pageInfo', JSON.stringify(pageInfo));
-  }
-  res.send(graph);
-}
+import { sendOrdersContainer } from '../ldp.js';
+import { sendProblem, withLdpErrors } from '../../ldp/index.js';
 
 const getAllOrders = async (req, res) => {
   try {
@@ -21,10 +15,10 @@ const getAllOrders = async (req, res) => {
     const customerId = await findCustomer(client, req.user.id);
 
     if (!customerId) {
-      return respond(
+      return sendOrdersContainer(
+        req,
         res,
-        await createBulkDfcOrderFromShopify([], [], req.params.EnterpriseName),
-        null
+        await createBulkDfcOrderFromShopify([], [], req.params.EnterpriseName)
       );
     }
 
@@ -33,7 +27,10 @@ const getAllOrders = async (req, res) => {
     } = req.query;
 
     if ((before && after) || (before && first) || (after && last) && (before && !last) && (after && !first)) {
-      return res.status(400).send('Incorrect combination of paging parameters. You cannot page forward and backwards symultaneously');
+      return sendProblem(req, res, 400, {
+        title: 'Bad request',
+        detail: 'Incorrect combination of paging parameters. You cannot page forward and backwards simultaneously'
+      });
     }
 
     const draftOrdersWithLineItemMappings = await getAllLineItems(req.params.EnterpriseName);
@@ -48,11 +45,13 @@ const getAllOrders = async (req, res) => {
       req.params.EnterpriseName
     );
 
-    return respond(res, allDfcOrders, pageInfo);
+    return sendOrdersContainer(req, res, allDfcOrders, { pageInfo });
   } catch (error) {
-    console.error(error);
-    res.status(500).end();
+    // Rethrow so the withLdpErrors wrapper below renders the problem
+    // document. Recursing into the handler here would retry the same failing
+    // Shopify/DB call indefinitely while the request stayed open.
+    throw error;
   }
 };
 
-export default getAllOrders;
+export default withLdpErrors(getAllOrders);

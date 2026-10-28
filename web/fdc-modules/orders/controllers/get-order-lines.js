@@ -4,47 +4,55 @@ import { createDfcOrderLinesFromShopify } from '../dfc/dfc-order.js';
 import { findOrder } from './shopify/orders.js';
 import { getLineItems } from '../../../database/line_items/lineItems.js';
 import { getOrder } from '../../../database/orders/orders.js';
+import { orderForbidden, orderNotFound, sendOrderLinesContainer } from '../ldp.js';
+import { sendProblem, withLdpErrors } from '../../ldp/index.js';
 
 const getOrderLines = async (req, res) => {
-  try {
-    const session = await getSession(`${req.params.EnterpriseName}.myshopify.com`);
-    const client = new shopify.api.clients.Graphql({ session });
+  const session = await getSession(`${req.params.EnterpriseName}.myshopify.com`);
+  const client = new shopify.api.clients.Graphql({ session });
 
-    const order = await getOrder(req.params.id, req.user.id, req.params.EnterpriseName);
+  const order = await getOrder(req.params.id, req.user.id, req.params.EnterpriseName);
 
-    if (!order) {
-      return res.status(403).send('You do not have permission to act on this order');
-    }
-
-    const {
-      before, after, first, last
-    } = req.query;
-
-    if ((before && after) || (before && first) || (after && last) && (before && !last) && (after && !first)) {
-      return res.status(400).send('Incorrect combination of paging parameters. You cannot page forward and backwards symultaneously');
-    }
-
-    const { order: shopifyOrder, pageInfo } = await findOrder(client, req.params.id, {
-      before, after, first: Number(first), last: Number(last)
-    });
-
-    if (!shopifyOrder) {
-      return res.status(404).send('Unable to find order');
-    }
-
-    const dfcOrder = await createDfcOrderLinesFromShopify(
-      shopifyOrder,
-      await getLineItems(req.params.id, req.params.EnterpriseName),
-      req.params.EnterpriseName,
-      req.params.id
-    );
-    res.type('application/json');
-    res.set('pageInfo', JSON.stringify(pageInfo));
-    res.send(dfcOrder);
-  } catch (error) {
-    console.error(error);
-    res.status(500).end();
+  if (!order) {
+    return orderForbidden(req, res);
   }
+
+  const {
+    before, after, first, last
+  } = req.query;
+
+  // Forward and backward paging cannot be combined. The original expression had
+  // a third clause requiring both `last` and `!last`, so it could never be
+  // true; it is dropped rather than carried forward as dead code.
+  const pagingBothWays = Boolean(before && after) || Boolean(before && first);
+
+  if (pagingBothWays) {
+    return sendProblem(req, res, 400, {
+      title: 'Bad request',
+      detail: 'Incorrect combination of paging parameters. You cannot page forward '
+        + 'and backwards simultaneously'
+    });
+  }
+
+  const { order: shopifyOrder, pageInfo } = await findOrder(client, req.params.id, {
+    before, after, first: Number(first), last: Number(last)
+  });
+
+  if (!shopifyOrder) {
+    return orderNotFound(req, res);
+  }
+
+  const dfcOrder = await createDfcOrderLinesFromShopify(
+    shopifyOrder,
+    await getLineItems(req.params.id, req.params.EnterpriseName),
+    req.params.EnterpriseName,
+    req.params.id
+  );
+
+  // Container framing: this is a collection of order lines and it accepts POST,
+  // so it advertises ldp:Container + Accept-Post rather than the resource
+  // framing (and first-line `Location`) that sendOrderMember would produce.
+  return sendOrderLinesContainer(req, res, dfcOrder, { pageInfo });
 };
 
-export default getOrderLines;
+export default withLdpErrors(getOrderLines);
