@@ -131,3 +131,35 @@ describe('ADVERTISED_SCOPES', () => {
     expect(new Set(ADVERTISED_SCOPES).size).toBe(ADVERTISED_SCOPES.length);
   });
 });
+
+describe('getRequiredScope case folding', () => {
+  it('resolves a mixed-case path to the same scope as the canonical one', () => {
+    // Express routes case-insensitively by default, so a mixed-case path
+    // reaches the same handler. The matrix must resolve it to the same scope.
+    const cases = [
+      ['/api/dfc/Enterprises/acme/SuppliedProducts', ['/api/dfc/enterprises/acme/suppliedproducts']],
+      ['/api/dfc/Enterprises/acme/Orders', ['/api/dfc/enterprises/acme/orders']],
+      ['/api/dfc/Enterprises/acme', ['/api/dfc/enterprises/acme']]
+    ];
+
+    for (const [canonical, variants] of cases) {
+      const expected = getRequiredScope(canonical, 'GET');
+      expect(expected).toBeDefined();
+
+      for (const variant of variants) {
+        expect(getRequiredScope(variant, 'GET')).toBe(expected);
+      }
+    }
+  });
+
+  it('does not fall back to the container scope for a mixed-case member', () => {
+    const member = getRequiredScope('/api/dfc/enterprises/acme/suppliedproducts', 'GET');
+    const container = getRequiredScope('/api/dfc/enterprises/acme', 'GET');
+
+    expect(member).toBeTruthy();
+    expect(container).toBeTruthy();
+    expect(member).not.toBe(container);
+    expect(member).toContain('ReadProducts');
+    expect(container).toContain('ReadEnterprise');
+  });
+});

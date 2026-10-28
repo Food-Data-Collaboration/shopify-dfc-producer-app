@@ -129,7 +129,8 @@ describe('LDP discovery', () => {
 
     const line = await discover(`${BASE}/Orders/9/orderLines/3`);
     expect(line.status).toBe(200);
-    expect(line.acceptPatch).toBe('application/ld+json');
+    // Order-line members support PUT, not PATCH: no `accept-patch` header.
+    expect(line.acceptPatch).toBeNull();
   });
 
   it('still carries the CORS headers a browser client needs', async () => {

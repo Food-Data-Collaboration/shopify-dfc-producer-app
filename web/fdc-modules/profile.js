@@ -83,7 +83,11 @@ const profile = (req, res) => sendLdp(req, res, 200, {
       // Without an explicit `@type: @id` this serialises as an RDF literal
       // rather than a link, so a JSON-LD consumer cannot traverse from the
       // profile document to the WebID node.
-      'foaf:primaryTopic': { '@id': meUri(), '@type': '@id' }
+      // `{ '@id': meUri() }` is the standard JSON-LD node reference; `@type:
+      // '@id'` is a context-level type-coercion directive, not a valid type on a
+      // document node, so it is not used here. The link to the WebID node is
+      // created by `@id` alone.
+      'foaf:primaryTopic': { '@id': meUri() }
     },
     {
       '@id': meUri(),

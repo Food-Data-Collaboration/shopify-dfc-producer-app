@@ -376,7 +376,7 @@ describe('GET SuppliedProducts/{id} (member)', () => {
     await getProduct(makeReq(), res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.headers.ETag).toMatch(/^W\/"/);
+    expect(res.headers.ETag).toMatch(/^"/);
     // The member GET returns the whole supporting graph, so the referenced
     // Quantity/Price/Offer definitions stay resolvable and the ETag matches
     // what a subsequent If-Match compares against.

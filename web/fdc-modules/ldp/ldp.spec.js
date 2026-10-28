@@ -135,9 +135,9 @@ describe('buildContainer', () => {
 });
 
 describe('etagFor', () => {
-  it('is a weak ETag over the exact payload', () => {
+  it('is a strong ETag over the exact payload', () => {
     const etag = etagFor({ a: 1 });
-    expect(etag).toMatch(/^W\/"[\w-]+"$/);
+    expect(etag).toMatch(/^"[\w-]+"$/);
     expect(etagFor({ a: 1 })).toBe(etag);
   });
 
@@ -160,11 +160,12 @@ describe('checkPreconditions', () => {
   });
 
   it('rejects a weak If-Match against a strong validator', () => {
-    // RFC 7232 3.1 requires strong comparison for If-Match. Our validators
-    // are weak, so a client sending the bare value must be told no rather
-    // than being allowed to believe it matches.
+    // RFC 7232 3.1 requires strong comparison for If-Match: a weak validator
+    // never matches a strong one. Our validators are strong, so a client
+    // sending `W/<hash>` must be told no with 412 rather than believe it
+    // matches.
     expect(
-      checkPreconditions(makeReq({ headers: { 'If-Match': etag.replace('W/', '') } }), etag)
+      checkPreconditions(makeReq({ headers: { 'If-Match': `W/${etag}` } }), etag)
     ).toMatchObject({ status: 412 });
   });
 
@@ -250,7 +251,7 @@ describe('sendLdp', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['Content-Type']).toBe('application/ld+json');
-    expect(res.headers.ETag).toMatch(/^W\/"/);
+    expect(res.headers.ETag).toMatch(/^"/);
     expect(res.headers.Vary).toBe('Accept');
   });
 

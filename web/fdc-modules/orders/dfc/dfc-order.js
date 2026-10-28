@@ -106,7 +106,13 @@ function createOrderLine(
 
   const { amount, currencyCode } = line.originalUnitPriceSet.shopMoney;
 
-  // Price extends QuantitativeValue in v2 (value + currency unit + vatRate).
+  // Both commerce nodes are scoped to this order line. The SuppliedProduct
+  // stays shared (it describes the variant itself), but the CatalogItem and
+  // Offer carry `hasPrice`, which is line-specific: two orders containing the
+  // same variant at different historical prices must not emit identical
+  // catalogue/offer IDs with conflicting prices, or an importer indexing nodes
+  // by ID resolves both chains to one price.
+  const lineKey = `${orderId}/${mapping.externalId}`;
   const price = connector.createPrice(priceIdFor(orderId, mapping.externalId), {
     value: amount,
     hasUnit: currencyMeasureFor(connector, currencyCode),
@@ -118,17 +124,20 @@ function createOrderLine(
   // the product produces a graph a v2 hub cannot traverse, and makes a
   // consumer treat the last URI segment as a product id.
   const catalogItem = connector.createCatalogItem(
-    `${suppliedProduct.semanticId}/CatalogItem`,
+    `${suppliedProduct.semanticId}/CatalogItem/${lineKey}`,
     {
       references: suppliedProduct.semanticId,
       hasPrice: price.semanticId
     }
   );
 
-  const offer = connector.createOffer(madeUpIdForTheOfferSoTheConnectorWorks, {
-    offers: catalogItem.semanticId,
-    hasPrice: price.semanticId
-  });
+  const offer = connector.createOffer(
+    `${madeUpIdForTheOfferSoTheConnectorWorks}/${lineKey}`,
+    {
+      offers: catalogItem.semanticId,
+      hasPrice: price.semanticId
+    }
+  );
 
   return [
     suppliedProduct,

@@ -5,17 +5,26 @@ import { throwError } from '../utils/index.js';
 import { fetchProductTypeById } from '../utils/productTypes.js';
 import loadConnectorWithResources from './index.js';
 
-let _qtyCounter = 0;
-const nextQtyId = () => `_:qty_${++_qtyCounter}`;
+/**
+ * Blank-node ids are minted from the resource they belong to, never from a
+ * process-wide counter. A counter advances on every rebuild, so two reads of
+ * unchanged products serialise to different bodies: a conditional GET can never
+ * return 304, and replaying that validator in `If-Match` rejects unchanged data
+ * with 412. A Shopify variant id is unique within any document we emit, so it
+ * scopes both nodes deterministically; the role suffix keeps the two quantities
+ * of a mapped retail/wholesale pair distinct without a counter.
+ */
+const quantityIdFor = (variantKey) => `_:qty_${variantKey}`;
+const priceIdFor = (variantKey) => `_:price_${variantKey}`;
 
-const createQuantitativeValue = (connector, value, unit) =>
-  connector.createQuantitativeValue(nextQtyId(), {
+const createQuantitativeValue = (connector, id, value, unit) =>
+  connector.createQuantitativeValue(id, {
     value,
     hasUnit: unit
   });
 
-const createPrice = (connector, value, unit, vatRate) =>
-  connector.createPrice(`_:price_${++_qtyCounter}`, { value, hasUnit: unit, vatRate });
+const createPrice = (connector, id, value, unit, vatRate) =>
+  connector.createPrice(id, { value, hasUnit: unit, vatRate });
 
 /**
  * `dfc-b:Offer` in v2 points at a **CatalogItem**, not at the SuppliedProduct
@@ -62,12 +71,14 @@ async function createVariantSuppliedProduct(
 
     const quantity = createQuantitativeValue(
       connector,
+      quantityIdFor(variant.id),
       variant?.inventoryItem?.measurement?.weight?.value || 0,
       kilogram
     );
     const hasVat = variant.taxable ? 1.0 : 0.0; // TODO check how the vat rate can be added
     const price = createPrice(
       connector,
+      priceIdFor(variant.id),
       variant.price,
       currencyMeasureFor(connector, variant.currencyCode),
       hasVat
@@ -139,10 +150,16 @@ async function createMappedVariant(
 
   const consumptionQty = createQuantitativeValue(
     connector,
+    quantityIdFor(`${retailVariant.id}_consumes`),
     noOfItemsPerPackage,
     piece
   );
-  const productionQty = createQuantitativeValue(connector, 1.0, piece);
+  const productionQty = createQuantitativeValue(
+    connector,
+    quantityIdFor(`${retailVariant.id}_produces`),
+    1.0,
+    piece
+  );
 
   const plannedConsumptionFlow = connector.createAsPlannedConsumptionFlow(
     `${semanticBase}/AsPlannedConsumptionFlow`,

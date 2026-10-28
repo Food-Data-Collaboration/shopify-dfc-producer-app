@@ -137,11 +137,18 @@ export const getRequiredScope = (path, method) => {
   // member when the container is followed by a separator. Test against the
   // pattern's regex, not the literal pattern: patterns contain
   // `:EnterpriseName`, which never appears in a real path.
+  //
+  // Both regexes are case-insensitive to match Express, which routes
+  // case-insensitively by default. Without this, `…/suppliedproducts` reaches
+  // the SuppliedProducts handler while the matrix finds no product row and
+  // falls back to the container's scope — on a shop using portal-scope
+  // authorization that lets a caller holding only `ReadEnterprise` read
+  // products.
   const containerPrefix = (pattern) =>
-    new RegExp(`^${pattern.replace(/:[^/]+/g, '[^/]+')}/`).test(`${path}/`);
+    new RegExp(`^${pattern.replace(/:[^/]+/g, '[^/]+')}/`, 'i').test(`${path}/`);
 
   const exact = (pattern) =>
-    new RegExp(`^${pattern.replace(/:[^/]+/g, '[^/]+')}$`).test(path);
+    new RegExp(`^${pattern.replace(/:[^/]+/g, '[^/]+')}$`, 'i').test(path);
 
   const rows = Object.entries(methodScopes);
 

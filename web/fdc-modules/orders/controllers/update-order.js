@@ -107,7 +107,20 @@ async function updateShopifyDraftOrder(client, order, reservationDate, enterpris
     reservationDate,
     shopifyLines
   );
-  if (order.hasOrderStatus === 'dfc-v:Complete') {
+
+  /**
+   * A JSON-LD value can arrive as `"dfc-v:Complete"` or as
+   * `{ "@id": "dfc-v:Complete" }` when its definition is not inlined; it can
+   * even be wrapped in an array. Normalise before comparing, or the completion
+   * step never fires and PUT returns success without completing the draft.
+   */
+  const orderStatusId = (value) => {
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return orderStatusId(value[0]);
+    return value?.['@id'] ?? value?.semanticId;
+  };
+
+  if (orderStatusId(order.hasOrderStatus) === 'dfc-v:Complete') {
     const completedOrder = await retry(() => shopifyOrders.completeDraftOrder(
       client,
       orderId
@@ -123,4 +136,5 @@ async function updateShopifyDraftOrder(client, order, reservationDate, enterpris
   return shopifyDraftOrder;
 }
 
+export { updateShopifyDraftOrder };
 export default withLdpErrors(updateOrder);

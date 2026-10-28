@@ -145,7 +145,12 @@ export const buildContainer = (id, members) => ({
  */
 export const etagFor = (payload) => {
   const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
-  return `W/"${createHash('sha256').update(body).digest('base64url')}"`;
+  // Strong validator: the hash covers the exact response bytes, so two
+  // byte-identical representations share one validator and a conforming client
+  // can use it in both If-Match (strong comparison) and If-None-Match
+  // (weak comparison). A weak `W/` prefix would let a weak If-Match tag match
+  // when RFC 7232 requires it to fail with 412.
+  return `"${createHash('sha256').update(body).digest('base64url')}"`;
 };
 
 /**
@@ -303,6 +308,13 @@ export const sendLdp = (req, res, status, body, options = {}) => {
     preferenceApplied
   } = options;
 
+  // `writable` means "this resource is a write target" (PUT is accepted);
+  // `patchable` means "PATCH is accepted and should be advertised". They are
+  // distinct: orders support PUT on members but not PATCH, while
+  // SuppliedProducts support both. Default `patchable` to `writable` so
+  // existing callers (products) keep advertising PATCH.
+  const patchable = options.patchable ?? writable;
+
   const payload = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
 
   const linkHeaders = [];
@@ -362,7 +374,7 @@ export const sendLdp = (req, res, status, body, options = {}) => {
   if (container && writable) {
     res.set('Accept-Post', LDP_CONTENT_TYPES);
   }
-  if (member && writable) {
+  if (member && patchable) {
     res.set('Accept-Patch', LDP_CONTENT_TYPES);
   }
 
@@ -482,15 +494,18 @@ const allowedMethods = ({ container, writable, methods }) => {
  * letting DRF fall through to schema advertisement, so hub clients get
  * `Allow` / `Accept-Post` / `Accept-Patch` without a body.
  */
-export const ldpOptions = ({ container, writable, methods }) => {
+export const ldpOptions = ({ container, writable, methods, patchable: explicitPatchable }) => {
   // Order matches DjangoLDP: read/create on a container, the write verbs then
   // HEAD/OPTIONS on a member.
   const allow = allowedMethods({ container, writable, methods });
+  // `writable` means "a write verb is allowed"; `patchable` means "PATCH is
+  // allowed and advertised". Orders advertise PUT on members but not PATCH.
+  const patchable = explicitPatchable ?? writable;
 
   return (req, res) => {
     res.set('Allow', allow.join(', '));
     // Only advertise the write media type the route actually accepts.
-    if (writable) {
+    if (patchable) {
       if (container) {
         res.set('Accept-Post', LDP_CONTENT_TYPES);
       } else {

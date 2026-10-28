@@ -1,5 +1,8 @@
 BEGIN;
-DROP TABLE IF EXISTS "portal_listing" CASCADE;
+-- Non-destructive on purpose: this script is re-run by developers against an
+-- existing volume. Dropping portal_listing / portal_permissions here would
+-- silently delete portal configurations and scope grants on every normal
+-- rerun. Use CREATE TABLE IF NOT EXISTS and only re-create the trigger.
 CREATE TABLE IF NOT EXISTS "portal_listing" (
     "id" serial PRIMARY KEY,
     "external_id" TEXT,
@@ -9,10 +12,10 @@ CREATE TABLE IF NOT EXISTS "portal_listing" (
     "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
 );
+DROP TRIGGER IF EXISTS set_timestamp ON "portal_listing";
 CREATE TRIGGER set_timestamp BEFORE
   UPDATE ON "portal_listing" FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();
 
-DROP TABLE IF EXISTS "portal_permissions" CASCADE;
 CREATE TABLE IF NOT EXISTS "portal_permissions" (
     "id" serial PRIMARY KEY,
     "producer" INTEGER NOT NULL,
@@ -27,6 +30,7 @@ CREATE TABLE IF NOT EXISTS "portal_permissions" (
       FOREIGN KEY(portal) 
         REFERENCES portal_listing(id)
 );
+DROP TRIGGER IF EXISTS set_timestamp ON "portal_permissions";
 CREATE TRIGGER set_timestamp BEFORE
   UPDATE ON "portal_permissions" FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();
 COMMIT;

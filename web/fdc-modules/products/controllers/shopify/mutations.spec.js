@@ -250,3 +250,42 @@ describe('findShopCurrency', () => {
     expect(await findShopCurrency(client)).toBeNull();
   });
 });
+/**
+ * A variable that is *used* but never *declared* is not an error the mocked
+ * client can see: Shopify rejects the whole document before executing it, and
+ * the mock happily replays a canned success. `updateVariantInShopify` shipped
+ * exactly that — `$productId` was passed in the variables object but never
+ * declared in the signature — so every price/SKU write failed at the API while
+ * the controller tests stayed green. This checks the document itself.
+ */
+describe('mutation documents', () => {
+  /** Every `$name` in the operation signature, before the first `{`. */
+  const declaredIn = (query) => {
+    const signature = query.slice(0, query.indexOf('{'));
+    return new Set([...signature.matchAll(/\$(\w+)\s*:/g)].map(([, name]) => name));
+  };
+
+  /** Every `$name` referenced anywhere in the document. */
+  const usedIn = (query) => new Set([...query.matchAll(/\$(\w+)/g)].map(([, name]) => name));
+
+  it('declares every variable it references', async () => {
+    const variantClient = makeClient(okVariantUpdate);
+    await updateVariantInShopify(variantClient, { retailVariantId: 4242 }, {
+      productId: 99,
+      price: '12.34',
+      sku: 'ABC'
+    });
+
+    const productClient = makeClient(okProductUpdate);
+    await updateProductDetails(productClient, 99, { title: 'New title' });
+
+    for (const { query } of [...variantClient.calls, ...productClient.calls]) {
+      const declared = declaredIn(query);
+      const missing = [...usedIn(query)].filter((name) => !declared.has(name));
+
+      expect(missing).toEqual([]);
+      // And the guard is not vacuous: these documents do use variables.
+      expect(declared.size).toBeGreaterThan(0);
+    }
+  });
+});

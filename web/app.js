@@ -184,6 +184,9 @@ app.options(
   ldpOptions({
     container: false,
     writable: true,
+    // PUT on order members, not PATCH: advertise PUT in `Allow` (via the
+    // explicit methods list) but do not advertise `Accept-Patch`.
+    patchable: false,
     methods: ['GET', 'PUT', 'HEAD', 'OPTIONS']
   })
 );
@@ -202,6 +205,8 @@ app.options(
   ldpOptions({
     container: false,
     writable: true,
+    // PUT on order-line members, not PATCH.
+    patchable: false,
     methods: ['GET', 'PUT', 'HEAD', 'OPTIONS']
   })
 );

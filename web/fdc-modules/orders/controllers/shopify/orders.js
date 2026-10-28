@@ -368,7 +368,16 @@ export async function completeDraftOrder(client, orderId) {
  */
 function suppliedProductIdFor(dfcLine) {
   const asArray = (value) => (Array.isArray(value) ? value : [value]).filter(Boolean);
-  const idOf = (value) => (typeof value === 'string' ? value : value?.semanticId);
+  const idOf = (value) => {
+    if (typeof value === 'string') {
+      return value;
+    }
+    // A connector export resolves nested nodes to objects with `semanticId`,
+    // but an unresolved reference arrives as a plain `{ '@id': '...' }` with no
+    // definition. Read `@id` too, otherwise an otherwise usable product
+    // reference is rejected as unresolvable.
+    return value?.['@id'] ?? value?.semanticId;
+  };
 
   // The product behind a single `Offer.offers` entry, or undefined when this
   // entry is not something we can resolve. Ordered most-authoritative first.

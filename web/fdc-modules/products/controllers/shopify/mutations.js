@@ -200,7 +200,7 @@ export async function updateVariantInShopify(client, { retailVariantId }, update
   }
 
   const response = await client.request(
-    `mutation dfcVariantUpdate($input: ProductVariantsBulkInput!) {
+    `mutation dfcVariantUpdate($input: ProductVariantsBulkInput!, $productId: ID!) {
        productVariantsBulkUpdate(productId: $productId, variants: [$input]) {
          userErrors { field message }
          productVariants { ${VARIANT_FIELDS} }

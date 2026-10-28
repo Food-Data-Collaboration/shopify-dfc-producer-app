@@ -23,7 +23,7 @@ fdcOrderRoutes.options('/', ldpOptions({ container: true, writable: true }));
 fdcOrderRoutes.get('/', getAllOrders);
 fdcOrderRoutes.post('/', create);
 
-fdcOrderRoutes.options('/:id', ldpOptions({ container: false, writable: true }));
+fdcOrderRoutes.options('/:id', ldpOptions({ container: false, writable: true, patchable: false }));
 fdcOrderRoutes.get('/:id', get);
 fdcOrderRoutes.put('/:id', update);
 

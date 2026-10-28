@@ -130,3 +130,49 @@ describe('exportSuppliedProducts', () => {
     expect(parsed['@graph'] || parsed['@id']).toBeDefined();
   });
 });
+
+describe('blank-node id stability', () => {
+  /**
+   * A process-wide counter makes the serialised body differ on every rebuild,
+   * so a conditional GET can never return 304 and replaying the validator in
+   * `If-Match` rejects unchanged data with 412. The ids must come from the
+   * variant instead, which makes two reads of unchanged products identical.
+   */
+  const exportTwice = async () => [
+    await exportSuppliedProducts(suppliedProductsWithMappedFdcVariants, 'fdc-producer'),
+    await exportSuppliedProducts(suppliedProductsWithMappedFdcVariants, 'fdc-producer')
+  ];
+
+  const blankDefinitions = (body) => {
+    const graph = JSON.parse(body)['@graph'] || [];
+    return graph
+      .filter((node) => typeof node?.['@id'] === 'string' && node['@id'].startsWith('_:'))
+      .map((node) => node['@id']);
+  };
+
+  it('serialises unchanged products to byte-identical output on every read', async () => {
+    const [first, second] = await exportTwice();
+
+    expect(typeof first).toBe('string');
+    expect(second).toBe(first);
+
+    const ids = blankDefinitions(first);
+    // The guard is not vacuous: the export really does emit blank nodes…
+    expect(ids.length).toBeGreaterThan(0);
+    // …and they are derived from a Shopify variant id, not a run counter.
+    expect(ids.every((id) => /_:(?:qty|price)_\d+/.test(id))).toBe(true);
+    expect(blankDefinitions(second)).toEqual(ids);
+  });
+
+  it('defines each blank node exactly once, so no two nodes collide', async () => {
+    const [first] = await exportTwice();
+    const ids = blankDefinitions(first);
+
+    expect(new Set(ids).size).toBe(ids.length);
+    // The mapped retail/wholesale pair carries two quantities for the same
+    // variant; the role suffix is what keeps them apart.
+    expect(ids.filter((id) => id.startsWith('_:qty_')).length).toBeGreaterThanOrEqual(4);
+    expect(ids.some((id) => id.endsWith('_consumes'))).toBe(true);
+    expect(ids.some((id) => id.endsWith('_produces'))).toBe(true);
+  });
+});

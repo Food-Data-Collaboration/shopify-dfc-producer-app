@@ -58,6 +58,10 @@ export const sendOrderMember = (req, res, graph) => {
   return sendGraph(req, res, graph, {
     member: true,
     writable: true,
+    // Orders support PUT on members, not PATCH: advertise PUT in `Allow` (via
+    // the explicit OPTIONS methods list) but do not advertise `Accept-Patch`,
+    // or a hub would PATCH a route that can only 404.
+    patchable: false,
     location: memberUri
   });
 };
@@ -101,6 +105,8 @@ export const sendOrderWrite = (req, res, graph) => {
     body: graph,
     member: true,
     writable: true,
+    // See sendOrderMember: PUT only, no PATCH advertisement.
+    patchable: false,
     location: memberUri
   });
 };

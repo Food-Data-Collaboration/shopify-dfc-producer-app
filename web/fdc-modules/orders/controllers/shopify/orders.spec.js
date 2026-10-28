@@ -108,6 +108,26 @@ describe('Orders', () => {
         });
     });
 
+    it('resolves the product through an unresolved object reference', async () => {
+        // JSON-LD can reference a node by `@id` alone when its definition is not
+        // inlined. idOf must read `@id` as well as `semanticId`, otherwise a
+        // usable product reference is rejected with 422.
+        const newDfcLine = new OrderLine(
+            'http://test.host/api/dfc/Enterprises/10000/Orders/10001/orderlines/10001-01',
+            {
+                quantity: 7,
+                concerns: [new Offer('o', { offers: [{ '@id': '777/CatalogItem' }] })]
+            }
+        );
+
+        const lines = await createUpdatedShopifyLines(draftOrder, newDfcLine);
+
+        expect(lines).toContainEqual({
+            variantId: 'gid://shopify/ProductVariant/777',
+            quantity: 7
+        });
+    });
+
     describe('unresolvable product chain', () => {
         // An OrderLine whose Offer -> CatalogItem -> SuppliedProduct chain does
         // not resolve used to fall back to the order line's own @id, which

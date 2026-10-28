@@ -234,6 +234,69 @@ describe('dfc orders', () => {
             expect(orderLines).toHaveLength(3);
         });
 
+        it('scopes catalogue and offer nodes to each order line when the same variant has different prices', async () => {
+            const sharedVariant = {
+                id: 'gid://shopify/ProductVariant/SHARED',
+                title: 'Shared variant'
+            };
+
+            const order1 = shopifyOrder({
+                id: 'gid://shopify/DraftOrder/ORDER-1',
+                lineItems: [{
+                    id: 'gid://shopify/DraftOrderLineItem/L1',
+                    quantity: 1,
+                    originalUnitPriceSet: {
+                        shopMoney: { amount: '10.00', currencyCode: 'GBP' }
+                    },
+                    custom: false,
+                    variant: sharedVariant
+                }]
+            });
+
+            const order2 = shopifyOrder({
+                id: 'gid://shopify/DraftOrder/ORDER-2',
+                lineItems: [{
+                    id: 'gid://shopify/DraftOrderLineItem/L2',
+                    quantity: 1,
+                    originalUnitPriceSet: {
+                        shopMoney: { amount: '20.00', currencyCode: 'GBP' }
+                    },
+                    custom: false,
+                    variant: sharedVariant
+                }]
+            });
+
+            const mappings = [
+                { draftOrderId: 'ORDER-1', lineItems: [{ shopifyId: 'L1', externalId: '1' }] },
+                { draftOrderId: 'ORDER-2', lineItems: [{ shopifyId: 'L2', externalId: '2' }] }
+            ];
+
+            const dfcOutput = await createBulkDfcOrderFromShopify([order1, order2], mappings, 'test-shop');
+            const parsed = JSON.parse(dfcOutput);
+            const graph = parsed['@graph'] || [parsed];
+
+            const catalogItems = graph.filter((n) => n['@type'] === 'dfc-b:CatalogItem');
+            const offers = graph.filter((n) => n['@type'] === 'dfc-b:Offer');
+
+            // Two orders, same variant → two catalogue nodes and two offers,
+            // each scoped to its line, not one shared by variant.
+            expect(catalogItems).toHaveLength(2);
+            expect(offers).toHaveLength(2);
+
+            const catalogIds = new Set(catalogItems.map((n) => n['@id']));
+            const offerIds = new Set(offers.map((n) => n['@id']));
+            expect(catalogIds.size).toBe(2);
+            expect(offerIds.size).toBe(2);
+
+            // Each node's @id carries its order/line key, so they differ across orders.
+            expect([...catalogIds].every((id) => id.includes('/CatalogItem/ORDER-'))).toBe(true);
+            expect([...offerIds].every((id) => id.includes('/Offers/SHARED/ORDER-'))).toBe(true);
+
+            // …and each carries its own line-specific price.
+            const prices = graph.filter((n) => n['@type'] === 'dfc-b:Price');
+            expect(new Set(prices.map((n) => n['@id'])).size).toBe(2);
+        });
+
         it('Placeholder line is not exposed to DFC', async () => {
             const orderFromShopify = shopifyOrder({
                 lineItems: [

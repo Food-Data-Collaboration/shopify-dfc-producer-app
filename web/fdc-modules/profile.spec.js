@@ -46,11 +46,11 @@ describe('GET /profile', () => {
     const [profileDoc, application] = document['@graph'];
 
     expect(profileDoc['@type']).toBe('foaf:PersonalProfileDocument');
-    // An explicit node reference, not a bare string: without `@type: @id` this
-    // serialises as an RDF literal and the WebID node is unreachable.
+    // A node reference is just `{ '@id': ... }`; `@type: '@id'` is a context-level
+    // type-coercion directive, not a valid RDF type on a document node, so it is
+    // omitted. The link to the WebID node is still created by `@id`.
     expect(profileDoc['foaf:primaryTopic']).toEqual({
-      '@id': `${host()}/profile#me`,
-      '@type': '@id'
+      '@id': `${host()}/profile#me`
     });
     expect(application['@id']).toBe(`${host()}/profile#me`);
     expect(application['@type']).toContain('foaf:Agent');
